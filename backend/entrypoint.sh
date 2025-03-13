@@ -1,9 +1,8 @@
 #!/bin/sh
 
-# Wait for database
 echo "Waiting for PostgreSQL..."
-while ! nc -z $POSTGRES_HOST $POSTGRES_PORT; do
-  sleep 0.1
+while ! pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER 2>/dev/null; do
+    sleep 1
 done
 echo "PostgreSQL started"
 
