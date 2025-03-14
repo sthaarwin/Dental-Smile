@@ -1,11 +1,26 @@
-
 import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Menu, X, User, LogIn } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Menu, X, User, LogIn, UserCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const token = localStorage.getItem('token');
+  const user = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null;
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
 
   return (
     <nav className="bg-white py-4 px-6 shadow-sm fixed w-full top-0 z-50">
@@ -36,18 +51,47 @@ const Navbar = () => {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center space-x-3">
-            <Button variant="outline" asChild>
-              <Link to="/login">
-                <LogIn className="h-4 w-4 mr-2" />
-                Log In
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link to="/signup">
-                <User className="h-4 w-4 mr-2" />
-                Sign Up
-              </Link>
-            </Button>
+            {token ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center gap-2">
+                    <UserCircle className="h-5 w-5" />
+                    {user?.name || 'Profile'}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <Link to="/dashboard" className="flex items-center">
+                      <User className="h-4 w-4 mr-2" />
+                      Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-red-600 focus:text-red-600"
+                    onClick={handleLogout}
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <>
+                <Button variant="outline" asChild>
+                  <Link to="/login">
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Log In
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link to="/signup">
+                    <User className="h-4 w-4 mr-2" />
+                    Sign Up
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -93,18 +137,39 @@ const Navbar = () => {
               Contact
             </Link>
             <div className="pt-2 space-y-2">
-              <Button variant="outline" className="w-full" asChild>
-                <Link to="/login">
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Log In
-                </Link>
-              </Button>
-              <Button className="w-full" asChild>
-                <Link to="/signup">
-                  <User className="h-4 w-4 mr-2" />
-                  Sign Up
-                </Link>
-              </Button>
+              {token ? (
+                <>
+                  <Button variant="ghost" className="w-full justify-start" asChild>
+                    <Link to="/dashboard">
+                      <User className="h-4 w-4 mr-2" />
+                      Dashboard
+                    </Link>
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleLogout}
+                    className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to="/login">
+                      <LogIn className="h-4 w-4 mr-2" />
+                      Log In
+                    </Link>
+                  </Button>
+                  <Button className="w-full" asChild>
+                    <Link to="/signup">
+                      <User className="h-4 w-4 mr-2" />
+                      Sign Up
+                    </Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         )}
