@@ -7,6 +7,11 @@ services:
         - VITE_API_URL=${VITE_API_URL}
     ports:
       - "8080:8080"
+    volumes:
+      - ./frontend:/app  # Add volume for hot reloading
+      - /app/node_modules  # Preserve node_modules
+    environment:
+      - CHOKIDAR_USEPOLLING=true
     depends_on:
       - backend
     networks:

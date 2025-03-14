@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Mail, Lock, ArrowRight } from "lucide-react";
 import axios from 'axios';
+import { authAPI } from '@/services/api';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -28,18 +29,19 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:8000/api/auth/login/', formData);
-      const { token, user } = response.data;
+      const response = await authAPI.login({
+        email: formData.email,
+        password: formData.password,
+      });
       
-      // Store token and user data in localStorage
+      const { token, user } = response.data;
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       
       toast.success('Logged in successfully!');
       navigate('/dashboard');
-    } catch (error) {
-      toast.error('Invalid credentials');
-      console.error('Login error:', error);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Login failed');
     }
   };
 

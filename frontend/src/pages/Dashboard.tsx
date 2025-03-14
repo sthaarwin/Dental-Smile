@@ -40,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { appointmentAPI } from '@/services/api';
 
 interface Appointment {
   id: number;
@@ -73,18 +74,16 @@ const Dashboard = () => {
       setUser(JSON.parse(userData));
     }
 
-    // Mock appointments data
-    setAppointments([
-      {
-        id: 2,
-        date: "2024-02-01",
-        time: "2:30 PM",
-        dentistName: "Dr. Michael Chen",
-        service: "Teeth Cleaning",
-        status: "completed",
-      },
-      // Add more mock appointments as needed
-    ]);
+    const fetchData = async () => {
+      try {
+        const appointmentsResponse = await appointmentAPI.getAppointments();
+        setAppointments(appointmentsResponse.data);
+      } catch (error) {
+        toast.error('Failed to load appointments');
+      }
+    };
+
+    fetchData();
   }, []);
 
   const handleLogout = () => {
@@ -98,28 +97,29 @@ const Dashboard = () => {
     setIsRescheduleDialogOpen(true);
   };
 
-  const confirmReschedule = () => {
-    if (!newDate || !newTime) {
+  const confirmReschedule = async () => {
+    if (!newDate || !newTime || !selectedAppointment) {
       toast.error("Please select both date and time");
       return;
     }
 
-    setAppointments(appointments.map(apt => {
-      if (apt.id === selectedAppointment?.id) {
-        return {
-          ...apt,
-          date: newDate.toISOString().split('T')[0],
-          time: newTime
-        };
-      }
-      return apt;
-    }));
+    try {
+      await appointmentAPI.rescheduleAppointment(selectedAppointment.id, {
+        date: newDate.toISOString().split('T')[0],
+        time: newTime
+      });
 
-    toast.success("Appointment rescheduled successfully");
-    setIsRescheduleDialogOpen(false);
-    setSelectedAppointment(null);
-    setNewDate(undefined);
-    setNewTime(undefined);
+      const updatedAppointments = await appointmentAPI.getAppointments();
+      setAppointments(updatedAppointments.data);
+      
+      toast.success("Appointment rescheduled successfully");
+      setIsRescheduleDialogOpen(false);
+      setSelectedAppointment(null);
+      setNewDate(undefined);
+      setNewTime(undefined);
+    } catch (error) {
+      toast.error('Failed to reschedule appointment');
+    }
   };
 
   const handleCancel = (appointment: Appointment) => {
@@ -127,11 +127,21 @@ const Dashboard = () => {
     setIsCancelDialogOpen(true);
   };
 
-  const confirmCancel = () => {
-    setAppointments(appointments.filter(apt => apt.id !== selectedAppointment?.id));
-    toast.success("Appointment cancelled successfully");
-    setIsCancelDialogOpen(false);
-    setSelectedAppointment(null);
+  const confirmCancel = async () => {
+    if (!selectedAppointment) return;
+
+    try {
+      await appointmentAPI.cancelAppointment(selectedAppointment.id);
+      
+      const updatedAppointments = await appointmentAPI.getAppointments();
+      setAppointments(updatedAppointments.data);
+      
+      toast.success("Appointment cancelled successfully");
+      setIsCancelDialogOpen(false);
+      setSelectedAppointment(null);
+    } catch (error) {
+      toast.error('Failed to cancel appointment');
+    }
   };
 
   const upcomingAppointments = appointments.filter(
@@ -184,7 +194,7 @@ const Dashboard = () => {
                       className="w-full justify-start"
                       asChild
                     >
-                      <Link to="/dashboard/profile">
+                      <Link to="/profile">
                         <User className="w-5 h-5 mr-3" />
                         Profile
                       </Link>

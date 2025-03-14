@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Navbar from "./components/Navbar";
 import Dashboard from "@/pages/Dashboard";
 import PrivateRoute from "@/components/PrivateRoute";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -61,13 +62,14 @@ const AnimatedRoutes = () => {
             <Route path="/dentist-login" element={<DentistLogin />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/faq" element={<FAQ />} />
+            <Route path="/profile" element={<Profile />} />
             <Route 
               path="/dashboard" 
               element={
                 <PrivateRoute>
                   <Dashboard />
                 </PrivateRoute>
-              } 
+              }
             />
             <Route path="*" element={<NotFound />} />
           </Routes>
