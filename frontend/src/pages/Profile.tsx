@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { User, Mail, Phone, Lock, Save, Edit2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Settings, LogOut, CalendarDays } from "lucide-react";
 
 interface UserProfile {
   name: string;
@@ -70,7 +72,6 @@ const Profile = () => {
         <div className="container mx-auto px-4">
           <div className="max-w-3xl mx-auto">
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Profile Settings</h1>
-
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Personal Information</CardTitle>

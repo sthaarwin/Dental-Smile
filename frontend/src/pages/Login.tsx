@@ -35,13 +35,19 @@ const Login = () => {
       });
       
       const { token, user } = response.data;
+      
+      // Store token in localStorage and set it in API headers
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
       toast.success('Logged in successfully!');
       navigate('/dashboard');
     } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Login failed');
+      const errorMessage = error.response?.data?.error || 'Login failed';
+      toast.error(errorMessage);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
     }
   };
 

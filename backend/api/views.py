@@ -58,3 +58,12 @@ def login_user(request):
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def get_current_user(request):
+    try:
+        user = request.user
+        return Response(UserSerializer(user).data)
+    except Exception as e:
+        logger.error(f"Error getting current user: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

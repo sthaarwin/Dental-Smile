@@ -1,15 +1,16 @@
 import axios from 'axios';
 
-const baseURL = 'http://localhost:8000/api';
+const API_URL = 'http://localhost:8000/api';
 
+// Create axios instance with default config
 const api = axios.create({
-  baseURL,
+  baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add request interceptor
+// Add request interceptor to add token to all requests
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -23,10 +24,10 @@ api.interceptors.request.use(
   }
 );
 
-// Add response interceptor
+// Add response interceptor to handle token expiry
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
+  (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -37,13 +38,11 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  login: (credentials: { email: string; password: string }) =>
-    api.post('/auth/login/', credentials),
-
+  login: (data: { email: string; password: string }) =>
+    api.post('/auth/login/', data),
+  getCurrentUser: () => api.get('/auth/me/'), // ensure this matches your backend endpoint
   register: (userData: { name: string; email: string; password: string }) =>
     api.post('/auth/register/', userData),
-
-  getCurrentUser: () => api.get('/auth/user/'),
 };
 
 export const appointmentAPI = {

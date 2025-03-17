@@ -9,10 +9,23 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const verifyAuth = async () => {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setIsAuthenticated(false);
+        return;
+      }
+
       try {
-        await authAPI.getCurrentUser();
-        setIsAuthenticated(true);
+        // Set auth header before making request
+        const response = await authAPI.getCurrentUser();
+        if (response.data) {
+          setIsAuthenticated(true);
+        } else {
+          throw new Error('Invalid response');
+        }
       } catch (error) {
+        console.error('Auth verification failed:', error);
         setIsAuthenticated(false);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -24,7 +37,11 @@ const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   if (isAuthenticated === null) {
-    return <div>Loading...</div>; // Or a proper loading component
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-dentist-600"></div>
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
