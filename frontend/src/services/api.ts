@@ -53,4 +53,9 @@ export const appointmentAPI = {
     api.delete(`/appointments/${id}/`),
 };
 
+export const userAPI = {
+  updateProfile: (data: any) => 
+    api.put('/api/users/profile', data),
+}
+
 export default api;

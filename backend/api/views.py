@@ -67,3 +67,24 @@ def get_current_user(request):
     except Exception as e:
         logger.error(f"Error getting current user: {str(e)}")
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PUT'])
+def update_profile(request):
+    try:
+        user = request.user
+        data = request.data
+        
+        # Update user fields
+        user.name = data.get('name', user.name)
+        user.email = data.get('email', user.email)
+        user.phone = data.get('phone', user.phone)
+        user.address = data.get('address', user.address)
+        user.emergency_contact = data.get('emergencyContact', user.emergency_contact)
+        user.emergency_phone = data.get('emergencyPhone', user.emergency_phone)
+        
+        user.save()
+        
+        return Response(UserSerializer(user).data)
+    except Exception as e:
+        logger.error(f"Error updating profile: {str(e)}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
