@@ -17,6 +17,7 @@ const Login = () => {
     email: "",
     password: "",
   });
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -28,6 +29,7 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
     try {
       const response = await authAPI.login({
         email: formData.email,
@@ -36,18 +38,23 @@ const Login = () => {
       
       const { token, user } = response.data;
       
+      if (!token || !user) {
+        throw new Error('Invalid response from server');
+      }
+      
       // Store token in localStorage and set it in API headers
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
       toast.success('Logged in successfully!');
       navigate('/dashboard');
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Login failed';
-      toast.error(errorMessage);
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      const message = error.response?.data?.error || 'Login failed';
+      toast.error(message);
+      console.error('Login error:', error);
+      setFormData(prev => ({ ...prev, password: '' })); // Clear password on error
+    } finally {
+      setLoading(false);
     }
   };
 

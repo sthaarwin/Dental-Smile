@@ -38,11 +38,48 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  login: (data: { email: string; password: string }) =>
-    api.post('/auth/login/', data),
+  login: async (data: { email: string; password: string }) => {
+    try {
+      const response = await api.post('/auth/login/', {
+        email: data.email,
+        password: data.password
+      });
+      
+      if (!response.data.token || !response.data.user) {
+        throw new Error('Invalid response format');
+      }
+      
+      return response;
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        throw new Error('Invalid credentials');
+      }
+      throw error;
+    }
+  },
   getCurrentUser: () => api.get('/auth/me/'), // ensure this matches your backend endpoint
-  register: (userData: { name: string; email: string; password: string }) =>
-    api.post('/auth/register/', userData),
+  register: async (userData: { name: string; email: string; password: string }) => {
+    try {
+      // Generate a username from email
+      const username = userData.email.split('@')[0];
+      
+      const response = await api.post('/auth/register/', {
+        name: userData.name,
+        email: userData.email,
+        password: userData.password,
+        username: username // Add username explicitly
+      });
+      return response;
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  },
+  requestPasswordReset: (email: string) =>
+    api.post('/auth/password-reset/', { email }),
+  
+  resetPassword: (token: string, password: string) =>
+    api.post('/auth/password-reset/confirm/', { token, password }),
 };
 
 export const appointmentAPI = {
@@ -54,8 +91,22 @@ export const appointmentAPI = {
 };
 
 export const userAPI = {
-  updateProfile: (data: any) => 
-    api.put('/api/users/profile', data),
+  updateProfile: async (data: any) => {
+    try {
+      const response = await api.put('/auth/profile/', {
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        emergency_contact: data.emergencyContact, // Note the underscore
+        emergency_phone: data.emergencyPhone     // Note the underscore
+      });
+      return response;
+    } catch (error) {
+      console.error('Profile update error:', error);
+      throw error;
+    }
+  }
 }
 
 export default api;

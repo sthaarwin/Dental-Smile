@@ -5,9 +5,9 @@ import { useScrollTop } from "@/hooks/useScrollTop";
 
 const Footer = () => {
   const location = useLocation();
-  const scrollToTop = useScrollTop();
+  const { scrollToTop } = useScrollTop();  // Destructure the hook return value
 
-  const handleNavClick = (path: string) => (e: React.MouseEvent) => {
+  const handleNavClick = (path: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (location.pathname === path) {
       e.preventDefault();
       scrollToTop();
@@ -18,7 +18,7 @@ const Footer = () => {
     <footer className="bg-dentist-800 text-white pt-12 pb-8 relative">
       {/* Scroll to top button */}
       <Button
-        onClick={scrollToTop}
+        onClick={() => scrollToTop()}  // Call the function
         className="absolute -top-5 right-8 bg-white hover:bg-gray-100 text-dentist-800 rounded-full w-10 h-10 p-0 shadow-lg border border-gray-200 flex items-center justify-center group transition-all duration-300 hover:scale-110"
         aria-label="Scroll to top"
       >

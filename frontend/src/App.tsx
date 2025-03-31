@@ -22,6 +22,8 @@ import Navbar from "./components/Navbar";
 import Dashboard from "@/pages/Dashboard";
 import PrivateRoute from "@/components/PrivateRoute";
 import Profile from "./pages/Profile";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,8 @@ const AnimatedRoutes = () => {
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/login" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/dentist-signup" element={<DentistSignup />} />
             <Route path="/dentist-login" element={<DentistLogin />} />
