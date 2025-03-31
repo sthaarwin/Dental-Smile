@@ -32,7 +32,7 @@ const DentistLogin = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white">
       <Helmet>
-        <title>Dentist Login | Smile Schedule Saver</title>
+        <title>Dentist Login | Dental Smile</title>
         <meta name="description" content="Login to your dental practice account to manage appointments and patient care." />
       </Helmet>
 

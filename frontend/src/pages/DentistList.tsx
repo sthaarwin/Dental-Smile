@@ -22,7 +22,7 @@ const DentistList = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Helmet>
-        <title>Find a Dentist | Smile Schedule Saver</title>
+        <title>Find a Dentist | Dental Smile</title>
         <meta name="description" content="Browse our network of qualified dentists and book your next dental appointment with ease." />
       </Helmet>
       

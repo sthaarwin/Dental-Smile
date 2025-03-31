@@ -1,46 +1,28 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-import uuid
+from .models import User, Dentist, Appointment, Review
 
 class UserSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=False)
-    
     class Meta:
-        model = get_user_model()
-        fields = ('id', 'email', 'name', 'phone', 'address', 
-                 'emergency_contact', 'emergency_phone', 'password')
-        extra_kwargs = {
-            'email': {'required': False},  # Make email optional for updates
-        }
-
+        model = User
+        fields = ['id', 'name', 'email', 'username', 'phone_number', 'address',
+                 'emergency_contact', 'emergency_phone', 'is_patient', 'is_dentist',
+                 'profile_picture']
+        extra_kwargs = {'password': {'write_only': True}}
+    
     def create(self, validated_data):
-        email = validated_data.get('email')
-        
-        # Generate username from email
-        base_username = email.split('@')[0]
-        username = base_username
-        counter = 1
-        
-        # Ensure unique username
-        User = get_user_model()
-        while User.objects.filter(username=username).exists():
-            username = f"{base_username}{counter}"
-            counter += 1
-        
-        # Create user with password
-        password = validated_data.pop('password')
-        validated_data['username'] = username
-        
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            **validated_data
-        )
+        password = validated_data.pop('password', None)
+        user = self.Meta.model(**validated_data)
+        if password:
+            user.set_password(password)
+        user.save()
         return user
-
+    
     def update(self, instance, validated_data):
         for attr, value in validated_data.items():
-            setattr(instance, attr, value)
+            if attr == 'password':
+                instance.set_password(value)
+            else:
+                setattr(instance, attr, value)
         instance.save()
         return instance

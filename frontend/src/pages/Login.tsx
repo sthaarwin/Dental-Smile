@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet";
 import { Link, useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -42,9 +40,22 @@ const Login = () => {
         throw new Error('Invalid response from server');
       }
       
-      // Store token in localStorage and set it in API headers
+      // First store the basic user data and token
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
+      
+      // Then fetch the complete user data including profile picture
+      try {
+        // The token is now set in localStorage and will be included in API requests
+        const currentUserResponse = await authAPI.getCurrentUser();
+        if (currentUserResponse.data) {
+          // Update user data in localStorage with complete user data
+          localStorage.setItem('user', JSON.stringify(currentUserResponse.data));
+          console.log("Updated user data:", currentUserResponse.data);
+        }
+      } catch (err) {
+        console.error("Error fetching current user data:", err);
+      }
       
       toast.success('Logged in successfully!');
       navigate('/dashboard');
@@ -64,8 +75,6 @@ const Login = () => {
         <title>Login | Smile Schedule Saver</title>
         <meta name="description" content="Login to your Smile Schedule Saver account to manage your dental appointments." />
       </Helmet>
-      
-      <Navbar />
       
       <div className="pt-24 pb-16 flex-grow">
         <div className="container mx-auto px-6">
@@ -207,8 +216,6 @@ const Login = () => {
           </div>
         </div>
       </div>
-      
-      <Footer />
     </div>
   );
 };

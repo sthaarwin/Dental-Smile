@@ -141,7 +141,7 @@ const DentistSignup = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white">
       <Helmet>
-        <title>Dentist Registration | Smile Schedule Saver</title>
+        <title>Dentist Registration | Dental Smile</title>
         <meta name="description" content="Join our network of dental professionals and grow your practice." />
       </Helmet>
       

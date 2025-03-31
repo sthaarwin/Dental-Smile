@@ -41,7 +41,7 @@ const ResetPassword = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Helmet>
-        <title>Reset Password | Smile Schedule Saver</title>
+        <title>Reset Password | Dental Smile</title>
       </Helmet>
 
       <Navbar />

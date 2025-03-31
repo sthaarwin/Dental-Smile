@@ -32,7 +32,7 @@ const ForgotPassword: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Helmet>
-        <title>Forgot Password | Smile Schedule Saver</title>
+        <title>Forgot Password | Dental Smile</title>
       </Helmet>
 
       <Navbar />

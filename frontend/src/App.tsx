@@ -24,6 +24,8 @@ import PrivateRoute from "@/components/PrivateRoute";
 import Profile from "./pages/Profile";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Settings from "./pages/Settings";
+import Footer from "./components/Footer";
 
 const queryClient = new QueryClient();
 
@@ -66,19 +68,20 @@ const AnimatedRoutes = () => {
             <Route path="/dentist-login" element={<DentistLogin />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/faq" element={<FAQ />} />
-            <Route path="/dashboard/profile" element={<Profile />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <PrivateRoute>
-                  <Dashboard />
-                </PrivateRoute>
-              }
-            />
+            
+            {/* Protected dashboard routes */}
+            <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+            <Route path="/dashboard/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+            <Route path="/dashboard/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+            
+            {/* 404 route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </motion.main>
       </AnimatePresence>
+
+      {/* Footer stays outside the animated content */}
+      <Footer />
     </>
   );
 };

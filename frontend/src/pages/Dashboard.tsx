@@ -155,7 +155,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Helmet>
-        <title>Dashboard | Smile Schedule Saver</title>
+        <title>Dashboard | Dental Smile</title>
       </Helmet>
 
       <Navbar />

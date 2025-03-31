@@ -9,8 +9,8 @@ const HowItWorks = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Helmet>
-        <title>How It Works | Smile Schedule Saver</title>
-        <meta name="description" content="Learn how to book dental appointments easily with Smile Schedule Saver." />
+        <title>How It Works | Dental Smile</title>
+        <meta name="description" content="Learn how to book dental appointments easily with Dental Smile." />
       </Helmet>
 
       <Navbar />
@@ -18,7 +18,7 @@ const HowItWorks = () => {
       <main className="flex-grow pt-24 pb-16">
         <div className="container mx-auto px-6">
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">How Smile Schedule Saver Works</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">How Dental Smile Works</h1>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
               Book your dental appointment in three simple steps
             </p>
@@ -101,7 +101,7 @@ const HowItWorks = () => {
 
           {/* Features Section */}
           <div className="bg-gray-50 rounded-2xl p-8 mb-16">
-            <h2 className="text-2xl font-bold text-center mb-8">Why Choose Smile Schedule Saver?</h2>
+            <h2 className="text-2xl font-bold text-center mb-8">Why Choose Dental Smile?</h2>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="flex items-start p-4">
                 <Shield className="h-8 w-8 text-dentist-600 mr-4 flex-shrink-0" />
@@ -130,7 +130,7 @@ const HowItWorks = () => {
           {/* CTA Section */}
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-4">Ready to Book Your Appointment?</h2>
-            <p className="text-gray-600 mb-6">Join thousands of patients who trust Smile Schedule Saver</p>
+            <p className="text-gray-600 mb-6">Join thousands of patients who trust Dental Smile</p>
             <div className="flex justify-center gap-4">
               <Button asChild>
                 <Link to="/dentists">

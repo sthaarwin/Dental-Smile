@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet";
 import { Link, useNavigate } from "react-router-dom";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Mail, Lock, User, ArrowRight } from "lucide-react";
-import axios from 'axios';
+import { Mail, Lock, User, ArrowRight, Phone } from "lucide-react";
+import { authAPI } from '@/services/api';
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -16,6 +14,7 @@ const Signup = () => {
     name: "",
     email: "",
     password: "",
+    phone_number: "",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,21 +28,23 @@ const Signup = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:8000/api/auth/register/', {
-        ...formData,
-        username: formData.email, // Using email as username
+      const response = await authAPI.register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        phone_number: formData.phone_number,
       });
       
       const { token, user } = response.data;
       
-      // Store token and user data in localStorage
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       
       toast.success('Account created successfully!');
       navigate('/dashboard');
-    } catch (error) {
-      toast.error('Registration failed. Please try again.');
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Registration failed. Please try again.';
+      toast.error(errorMessage);
       console.error('Signup error:', error);
     }
   };
@@ -51,11 +52,9 @@ const Signup = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white">
       <Helmet>
-        <title>Sign Up | Smile Schedule Saver</title>
-        <meta name="description" content="Create a Smile Schedule Saver account to manage your dental appointments." />
+        <title>Sign Up | Dental Smile</title>
+        <meta name="description" content="Create a Dental Smile account to manage your dental appointments." />
       </Helmet>
-      
-      <Navbar />
       
       <div className="pt-24 pb-16 flex-grow">
         <div className="container mx-auto px-6">
@@ -64,7 +63,6 @@ const Signup = () => {
             <p className="text-gray-600 mb-8 text-lg">Join thousands of patients managing their dental care with ease</p>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 relative">
-              {/* Decorative elements */}
               <div className="hidden lg:block absolute -z-10 top-10 right-10 w-32 h-32 bg-blue-50 rounded-full opacity-70"></div>
               <div className="hidden lg:block absolute -z-10 bottom-10 left-10 w-48 h-48 bg-dentist-50 rounded-full opacity-70"></div>
               
@@ -110,6 +108,22 @@ const Signup = () => {
                         onChange={handleChange}
                         placeholder="john@example.com"
                         required
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="phone_number" className="text-gray-700">Phone Number</Label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input 
+                        id="phone_number"
+                        name="phone_number"
+                        type="tel"
+                        value={formData.phone_number}
+                        onChange={handleChange}
+                        placeholder="(123) 456-7890"
                         className="pl-10"
                       />
                     </div>
@@ -163,7 +177,7 @@ const Signup = () => {
                 <div className="absolute top-0 right-0 w-40 h-40 bg-white opacity-10 rounded-full -mr-20 -mt-20"></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-dentist-800 opacity-20 rounded-full -ml-16 -mb-16"></div>
                 
-                <h2 className="text-2xl font-semibold mb-6 relative z-10">Why Join Smile Schedule Saver?</h2>
+                <h2 className="text-2xl font-semibold mb-6 relative z-10">Why Join Dental Smile?</h2>
                 <ul className="space-y-4 relative z-10">
                   <li className="flex items-start">
                     <div className="rounded-full bg-white bg-opacity-20 p-1 mr-3 mt-0.5">
@@ -211,8 +225,6 @@ const Signup = () => {
           </div>
         </div>
       </div>
-      
-      <Footer />
     </div>
   );
 };

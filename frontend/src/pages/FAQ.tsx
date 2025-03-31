@@ -14,13 +14,13 @@ interface FAQItem {
 const faqs: FAQItem[] = [
   {
     category: "General",
-    question: "How does Smile Schedule Saver work?",
-    answer: "Smile Schedule Saver is an online platform that connects patients with dental professionals. You can search for dentists, read reviews, compare credentials, and book appointments online 24/7."
+    question: "How does Dental Smile work?",
+    answer: "Dental Smile is an online platform that connects patients with dental professionals. You can search for dentists, read reviews, compare credentials, and book appointments online 24/7."
   },
   {
     category: "General",
     question: "Is the service free to use?",
-    answer: "Yes, Smile Schedule Saver is completely free for patients to use. There are no hidden fees or charges for booking appointments through our platform."
+    answer: "Yes, Dental Smile is completely free for patients to use. There are no hidden fees or charges for booking appointments through our platform."
   },
   {
     category: "Appointments",
@@ -61,8 +61,8 @@ const FAQ = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Helmet>
-        <title>FAQ | Smile Schedule Saver</title>
-        <meta name="description" content="Find answers to frequently asked questions about Smile Schedule Saver's dental appointment booking service." />
+        <title>FAQ | Dental Smile</title>
+        <meta name="description" content="Find answers to frequently asked questions about Dental Smile's dental appointment booking service." />
       </Helmet>
 
       <Navbar />

@@ -33,6 +33,7 @@ class User(AbstractUser):
     address = models.CharField(max_length=255, blank=True)
     emergency_contact = models.CharField(max_length=255, blank=True)
     emergency_phone = models.CharField(max_length=15, blank=True)
+    profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
     is_patient = models.BooleanField(default=True)
     is_dentist = models.BooleanField(default=False)
     groups = models.ManyToManyField(

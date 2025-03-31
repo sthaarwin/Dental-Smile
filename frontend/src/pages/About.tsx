@@ -53,7 +53,7 @@ const About = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Helmet>
-        <title>About Us | Smile Schedule Saver</title>
+        <title>About Us | Dental Smile</title>
         <meta name="description" content="Learn about our mission to simplify dental care access and improve oral health outcomes." />
       </Helmet>
       
@@ -67,7 +67,7 @@ const About = () => {
               <div className="lg:w-1/2">
                 <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">Revolutionizing Dental Care Access</h1>
                 <p className="text-lg text-gray-700 mb-6">
-                  At Smile Schedule Saver, we're on a mission to connect patients with quality dental care through innovative technology and a patient-first approach.
+                  At Dental Smile, we're on a mission to connect patients with quality dental care through innovative technology and a patient-first approach.
                 </p>
                 <div className="flex flex-wrap gap-4">
                   <Button asChild>
@@ -125,7 +125,7 @@ const About = () => {
               <div className="md:w-2/3">
                 <h3 className="text-2xl font-semibold text-dentist-600 mb-4">Reimagining Dental Appointments</h3>
                 <p className="text-gray-700 mb-6">
-                  Founded in 2025, Smile Schedule Saver was born from a simple observation: booking dental appointments 
+                  Founded in 2025, Dental Smile was born from a simple observation: booking dental appointments 
                   was unnecessarily complicated. Our founders experienced firsthand the frustration of calling multiple 
                   dental offices, waiting on hold, and struggling to find appointments that fit their schedules.
                 </p>
@@ -259,7 +259,7 @@ const About = () => {
           <div className="text-center mb-10">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">Meet Our Team</h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              The passionate professionals behind Smile Schedule Saver
+              The passionate professionals behind Dental Smile
             </p>
           </div>
           
@@ -327,7 +327,7 @@ const About = () => {
               <div>
                 <h2 className="text-3xl font-bold text-white mb-4">Ready to Experience Better Dental Care?</h2>
                 <p className="text-dentist-100 mb-0 max-w-xl">
-                  Join thousands of patients who've simplified their dental care journey with Smile Schedule Saver.
+                  Join thousands of patients who've simplified their dental care journey with Dental Smile.
                 </p>
               </div>
               <div className="flex flex-wrap gap-4">

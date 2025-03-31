@@ -49,7 +49,7 @@ const Contact = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <Helmet>
-        <title>Contact Us | Smile Schedule Saver</title>
+        <title>Contact Us | Dental Smile</title>
         <meta name="description" content="Contact our dental scheduling specialists for support or inquiries about our services." />
       </Helmet>
       
