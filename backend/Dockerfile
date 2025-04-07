@@ -16,6 +16,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the project
 COPY . .
 
+# Add wait-for-it.sh script to wait for the database to be ready
+COPY wait_for_db.sh /app/wait_for_db.sh
+RUN chmod +x /app/wait_for_db.sh
+
 # Make the entrypoint script executable
 RUN chmod +x /app/entrypoint.sh
 
