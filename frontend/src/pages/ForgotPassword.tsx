@@ -94,7 +94,6 @@ const ForgotPassword: React.FC = () => {
         </div>
       </main>
 
-      <Footer />
     </div>
   );
 };

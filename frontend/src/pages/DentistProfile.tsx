@@ -48,7 +48,6 @@ const DentistProfile = () => {
             </Link>
           </div>
         </div>
-        <Footer />
       </div>
     );
   }

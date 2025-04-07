@@ -10,3 +10,5 @@ django-storages
 boto3
 django-filter
 django-extensions
+cloudinary 
+django-cloudinary-storage

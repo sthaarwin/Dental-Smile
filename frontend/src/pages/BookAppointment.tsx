@@ -585,7 +585,7 @@ const BookAppointment = () => {
         </div>
       </main>
 
-      <Footer />
+  
     </div>
   );
 };

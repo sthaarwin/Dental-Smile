@@ -282,7 +282,6 @@ const Dashboard = () => {
         </div>
       </main>
 
-      <Footer />
 
       {/* Reschedule Dialog */}
       <Dialog open={isRescheduleDialogOpen} onOpenChange={setIsRescheduleDialogOpen}>

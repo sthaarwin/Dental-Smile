@@ -697,7 +697,6 @@ const DentistSignup = () => {
         </div>
       </main>
       
-      <Footer />
     </div>
   );
 };

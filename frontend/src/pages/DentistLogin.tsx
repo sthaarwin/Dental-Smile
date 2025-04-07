@@ -153,7 +153,6 @@ const DentistLogin = () => {
         </div>
       </main>
 
-      <Footer />
     </div>
   );
 };

@@ -145,8 +145,6 @@ const HowItWorks = () => {
           </div>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 };

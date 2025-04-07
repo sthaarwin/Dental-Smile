@@ -139,7 +139,6 @@ const DentistListing = () => {
         </div>
       </div>
       
-      <Footer />
     </div>
   );
 };
