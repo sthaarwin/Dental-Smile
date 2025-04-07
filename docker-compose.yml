@@ -1,3 +1,5 @@
+version: '3.7'
+
 services:
   frontend:
     build:
@@ -22,27 +24,16 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
-    depends_on:
-      - db
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
     environment:
-      - POSTGRES_HOST=${POSTGRES_HOST}
-      - POSTGRES_PORT=${POSTGRES_PORT}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY}
-      - DEBUG=${DEBUG}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-    command: >
-      sh -c "/app/wait_for_db.sh && python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/example/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - NODE_ENV=development
     networks:
       - app-network
+    depends_on:
+      - db
 
   db:
     image: postgres:14
