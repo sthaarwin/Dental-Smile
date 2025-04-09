@@ -31,21 +31,22 @@ Dental Smile is a modern web application designed to simplify dental appointment
 - **Shadcn UI** component library
 - **React Router** for navigation
 - **Framer Motion** for animations
+- **TanStack React Query** for data fetching
+- **Sonner** for toast notifications
 
 ### Backend
-- **Django REST Framework** for APIs
-- **PostgreSQL** for database
+- **NestJS** for API development
+- **MongoDB** with Mongoose for database
 - **JWT Authentication** for secure access
-- **Docker** for containerized development
+- **RESTful API** architecture
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- **Node.js** (v14+)
-- **Python** (v3.9+)
-- **PostgreSQL**
+- **Node.js** (v18+)
+- **MongoDB**
 - **Docker** (optional)
 
 ### Frontend Setup
@@ -58,11 +59,8 @@ npm run dev
 ### Backend Setup
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver
+npm install
+npm run start:dev
 ```
 
 ### Using Docker
@@ -79,23 +77,24 @@ dental_appointment/
 ├── frontend/               # React frontend application
 │   ├── src/                # Source files
 │   │   ├── components/     # Reusable UI components
+│   │   │   └── ui/         # Shadcn UI components
 │   │   ├── pages/          # Page components
 │   │   ├── services/       # API services
 │   │   ├── hooks/          # Custom React hooks
+│   │   ├── data/           # Mock data
 │   │   └── lib/            # Utility functions
 │   ├── public/             # Static assets
 │   └── package.json        # NPM dependencies
 │
-└── backend/                # Django backend application
-    ├── api/                # REST API app
-    │   ├── migrations/     # Database migrations
-    │   ├── models.py       # Data models
-    │   ├── serializers.py  # API serializers
-    │   ├── views.py        # API views
-    │   └── urls.py         # API routes
-    └── backend/            # Django project settings
-        ├── settings.py     # Project configuration
-        └── urls.py         # URL configuration
+└── backend/                # NestJS backend application
+    ├── src/                # Source files
+    │   ├── appointments/   # Appointments module
+    │   ├── reviews/        # Reviews module
+    │   ├── services/       # Services module
+    │   ├── schedules/      # Schedules module
+    │   ├── users/          # Users module
+    │   └── main.ts         # Application entry point
+    └── package.json        # NPM dependencies
 ```
 
 ---
@@ -111,7 +110,7 @@ npm test
 ### Backend Tests
 ```bash
 cd backend
-python manage.py test
+npm run test
 ```
 
 ---
@@ -136,7 +135,8 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 ## 🙏 Acknowledgements
 
-- [Django](https://www.djangoproject.com/)
+- [NestJS](https://nestjs.com/)
 - [React](https://reactjs.org/)
 - [Tailwind CSS](https://tailwindcss.com/)
 - [Shadcn UI](https://ui.shadcn.com/)
+- [MongoDB](https://www.mongodb.com/)
