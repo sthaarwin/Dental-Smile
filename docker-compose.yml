@@ -1,61 +1,24 @@
-version: '3.7'
+version: '3.8'
 
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=${VITE_API_URL}
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./frontend:/app  
-      - /app/node_modules 
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-    depends_on:
-      - backend
-    networks:
-      - app-network
-
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+      - "3000:3000"
     environment:
-      - NODE_ENV=development
-    networks:
-      - app-network
+      MONGO_URI: mongodb://mongo:27017/dental_appointment
     depends_on:
-      - db
+      - mongo
 
-  db:
-    image: postgres:14
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  mongo:
+    image: mongo:6.0
+    container_name: mongo
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - app-network
+      - mongo_data:/data/db
 
 volumes:
-  postgres_data:
-
-networks:
-  app-network:
-    driver: bridge
+  mongo_data:

@@ -5,7 +5,6 @@ import { Users, Clock, Check, Award, Smile, Shield, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 
-// Team member interface
 interface TeamMember {
   name: string;
   role: string;
@@ -13,7 +12,6 @@ interface TeamMember {
   bio: string;
 }
 
-// Team members data
 const teamMembers: TeamMember[] = [
   {
     name: "Dr. Sarah Johnson",
@@ -41,7 +39,6 @@ const teamMembers: TeamMember[] = [
   }
 ];
 
-// Statistics data
 const stats = [
   { value: "10k+", label: "Appointments Booked Monthly" },
   { value: "500+", label: "Dental Professionals" },

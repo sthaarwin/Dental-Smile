@@ -80,7 +80,6 @@ const AnimatedRoutes = () => {
         </motion.main>
       </AnimatePresence>
 
-      {/* Footer stays outside the animated content */}
       <Footer />
     </>
   );
