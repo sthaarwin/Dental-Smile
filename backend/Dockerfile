@@ -1,38 +1,17 @@
-FROM python:3.10-slim
+FROM node:slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libpq-dev \
-    netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies
+COPY package*.json ./
+RUN npm install
 
 # Copy the project
 COPY . .
 
-# Add wait-for-it.sh script to wait for the database to be ready
-COPY wait_for_db.sh /app/wait_for_db.sh
-RUN chmod +x /app/wait_for_db.sh
+# Set environment variables
+ENV NODE_ENV=development
 
-# Make the entrypoint script executable
-RUN chmod +x /app/entrypoint.sh
+EXPOSE 3000
 
-ENV POSTGRES_DB=postgres \
-    POSTGRES_USER=postgres \
-    POSTGRES_PASSWORD=postgres \
-    POSTGRES_HOST=db \
-    POSTGRES_PORT=5432 \
-    DJANGO_SECRET_KEY=changeme \
-    DEBUG=True \
-    ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
-
-EXPOSE 8000
-
-ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["npm", "run", "start:dev"]
