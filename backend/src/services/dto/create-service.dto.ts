@@ -12,7 +12,7 @@ export class CreateServiceDto {
   @IsNotEmpty()
   @IsNumber()
   @Min(5)
-  duration: number; // in minutes
+  duration: number; 
 
   @IsNotEmpty()
   @IsNumber()

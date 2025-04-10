@@ -8,14 +8,12 @@ import { mockDentists } from "@/data/mockDentists";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
-  // Get top-rated dentists for the featured section
   const topDentists = [...mockDentists]
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 3);
 
   return (
     <>
-      {/* Hero Section */}
       <section className="pt-24 pb-16 hero-pattern">
         <div className="container mx-auto px-6">
           <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
@@ -46,31 +44,6 @@ const Index = () => {
         </div>
       </section>
       
-      {/* Featured Dentists */}
-      <section className="py-16 bg-white">
-        <div className="container mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Featured Dentists</h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              Discover our top-rated dental professionals with exceptional patient reviews and years of experience.
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {topDentists.map((dentist) => (
-              <DentistCard key={dentist.id} dentist={dentist} />
-            ))}
-          </div>
-          
-          <div className="text-center mt-10">
-            <Button asChild>
-              <Link to="/dentists">View All Dentists</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-      
-      {/* How It Works */}
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-6">
           <div className="text-center mb-12">
@@ -81,10 +54,8 @@ const Index = () => {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            {/* Connection lines (visible on md screens and up) */}
             <div className="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-dentist-100 via-dentist-300 to-dentist-100 -z-10"></div>
             
-            {/* Step 1 */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 relative transition-transform hover:shadow-md hover:-translate-y-1">
               <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-gradient-to-br from-dentist-500 to-dentist-600 rounded-full flex items-center justify-center mx-auto shadow-md">
                 <Search className="h-8 w-8 text-white" />
@@ -111,7 +82,6 @@ const Index = () => {
               </div>
             </div>
             
-            {/* Step 2 */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 relative transition-transform hover:shadow-md hover:-translate-y-1 md:mt-12">
               <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-gradient-to-br from-dentist-500 to-dentist-600 rounded-full flex items-center justify-center mx-auto shadow-md">
                 <Calendar className="h-8 w-8 text-white" />
@@ -138,7 +108,6 @@ const Index = () => {
               </div>
             </div>
             
-            {/* Step 3 */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 relative transition-transform hover:shadow-md hover:-translate-y-1">
               <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 w-16 h-16 bg-gradient-to-br from-dentist-500 to-dentist-600 rounded-full flex items-center justify-center mx-auto shadow-md">
                 <CheckCircle className="h-8 w-8 text-white" />
@@ -174,7 +143,6 @@ const Index = () => {
         </div>
       </section>
       
-      {/* Features */}
       <section className="py-16 bg-white">
         <div className="container mx-auto px-6">
           <div className="text-center mb-12">
@@ -219,7 +187,6 @@ const Index = () => {
         </div>
       </section>
       
-      {/* CTA Section */}
       <section className="py-16 bg-dentist-600 text-white">
         <div className="container mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between">

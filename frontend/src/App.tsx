@@ -27,20 +27,26 @@ import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import Footer from "./components/Footer";
 
-const queryClient = new QueryClient();
+// Initialize queryClient with secure configuration
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
 
 const ScrollToTop = () => {
   useScrollTop();
   return null;
 };
 
-// Page transition wrapper component
 const AnimatedRoutes = () => {
   const location = useLocation();
   
   return (
     <>
-      {/* Navbar stays outside the animated content */}
       <Navbar />
       
       <AnimatePresence mode="wait">
@@ -69,12 +75,10 @@ const AnimatedRoutes = () => {
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/faq" element={<FAQ />} />
             
-            {/* Protected dashboard routes */}
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/dashboard/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/dashboard/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
             
-            {/* 404 route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </motion.main>

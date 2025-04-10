@@ -20,8 +20,6 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (isPasswordValid) {
-      // Handle as Document type that has toObject method
-      // Need to cast as any to avoid TypeScript errors
       const result = { ...(user as any).toObject() };
       delete result.password;
       return result;
@@ -31,7 +29,6 @@ export class AuthService {
   }
 
   async login(user: any) {
-    // Use string interpolation for _id to handle either string or ObjectId
     const payload = { email: user.email, sub: `${user._id}` };
     
     return {
@@ -51,10 +48,8 @@ export class AuthService {
     try {
       const user = await this.usersService.create(userData);
       
-      // Use string interpolation for _id
       const payload = { email: user.email, sub: `${(user as any)._id}` };
       
-      // Handle as Document type that has toObject method
       const userObj = (user as any).toObject ? (user as any).toObject() : user;
       const { password, ...userWithoutPassword } = userObj;
       
