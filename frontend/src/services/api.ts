@@ -1,4 +1,11 @@
 import axios from 'axios';
+import { 
+  DentalService, 
+  CreateServiceRequest, 
+  UpdateServiceRequest,
+  PaginatedServicesResponse,
+  BulkServiceUpdate
+} from '../types/service';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -85,6 +92,30 @@ export const authAPI = {
   
   resetPassword: (token: string, password: string) =>
     api.post('/auth/password-reset/confirm/', { token, password }),
+  
+  updateProfile: async (data: any) => {
+    try {
+      const response = await api.put('/auth/profile/', data);
+      return response;
+    } catch (error) {
+      console.error('Profile update error:', error);
+      throw error;
+    }
+  },
+  
+  uploadProfilePicture: async (formData: FormData) => {
+    try {
+      const response = await api.post('/auth/upload-profile-picture/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
+      });
+      return response;
+    } catch (error) {
+      console.error('Profile picture upload error:', error);
+      throw error;
+    }
+  }
 };
 
 export const appointmentAPI = {
@@ -141,5 +172,51 @@ export const userAPI = {
     }
   }
 }
+
+export const servicesAPI = {
+  // Get all dental services with filtering options
+  getAllServices: (params?: {
+    active?: boolean; 
+    category?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => api.get<PaginatedServicesResponse>('/services', { params }),
+  
+  // Get active services only (public endpoint)
+  getActiveServices: (params?: {
+    category?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => api.get<PaginatedServicesResponse>('/services/public', { params }),
+  
+  // Get a specific service by ID
+  getServiceById: (id: string) => api.get<DentalService>(`/services/${id}`),
+  
+  // Create a new service (admin only)
+  createService: (serviceData: CreateServiceRequest) => api.post<DentalService>('/services', serviceData),
+  
+  // Update an existing service (admin only)
+  updateService: (id: string, serviceData: UpdateServiceRequest) => 
+    api.put<DentalService>(`/services/${id}`, serviceData),
+  
+  // Delete a service (admin only)
+  deleteService: (id: string) => api.delete<DentalService>(`/services/${id}`),
+  
+  // Activate a service (admin only)
+  activateService: (id: string) => api.patch<DentalService>(`/services/${id}/activate`),
+  
+  // Deactivate a service (admin only)
+  deactivateService: (id: string) => api.patch<DentalService>(`/services/${id}/deactivate`),
+  
+  // Bulk create services (admin only)
+  bulkCreateServices: (servicesData: CreateServiceRequest[]) => 
+    api.post<{ success: number; failed: number }>('/services/bulk', servicesData),
+  
+  // Bulk update services (admin only)
+  bulkUpdateServices: (updates: BulkServiceUpdate[]) => 
+    api.put<{ success: number; failed: number }>('/services/bulk', updates),
+};
 
 export default api;

@@ -14,9 +14,46 @@ export class ServicesService {
     return newService.save();
   }
 
-  async findAll(activeOnly = false): Promise<DentalService[]> {
-    const filter = activeOnly ? { isActive: true } : {};
-    return this.dentalServiceModel.find(filter).sort({ name: 1 }).exec();
+  async findAll(
+    activeOnly = false, 
+    category?: string, 
+    search?: string,
+    page = 1,
+    limit = 10
+  ): Promise<{ data: DentalService[]; total: number; page: number; totalPages: number }> {
+    const filter: any = {};
+    
+    if (activeOnly) {
+      filter.isActive = true;
+    }
+    
+    if (category) {
+      filter.category = category;
+    }
+    
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+      ];
+    }
+    
+    const skip = (page - 1) * limit;
+    const [data, total] = await Promise.all([
+      this.dentalServiceModel.find(filter)
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.dentalServiceModel.countDocuments(filter)
+    ]);
+    
+    return {
+      data,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   async findOne(id: string): Promise<DentalService> {
@@ -59,5 +96,40 @@ export class ServicesService {
 
   async activate(id: string): Promise<DentalService> {
     return this.update(id, { isActive: true });
+  }
+
+  async bulkCreate(createServiceDtos: any[]): Promise<{ success: number; failed: number }> {
+    try {
+      const result = await this.dentalServiceModel.insertMany(createServiceDtos, { ordered: false });
+      return { 
+        success: result.length, 
+        failed: createServiceDtos.length - result.length 
+      };
+    } catch (error) {
+      if (error.writeErrors) {
+        return { 
+          success: error.insertedDocs.length, 
+          failed: createServiceDtos.length - error.insertedDocs.length 
+        };
+      }
+      throw error;
+    }
+  }
+
+  async bulkUpdate(updates: { id: string; data: any }[]): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    const operations = updates.map(async (update) => {
+      try {
+        await this.dentalServiceModel.findByIdAndUpdate(update.id, update.data);
+        success++;
+      } catch (error) {
+        failed++;
+      }
+    });
+
+    await Promise.all(operations);
+    return { success, failed };
   }
 }

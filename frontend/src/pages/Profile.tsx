@@ -25,14 +25,14 @@ import {
   Camera,
   Upload
 } from "lucide-react";
-import { userAPI } from "@/services/api";
+import { userAPI, authAPI } from "@/services/api";
 
 interface UserProfile {
   name: string;
   email: string;
   phone_number: string;
   address: string;
-  image?: string;
+  profile_picture?: string;
 }
 
 const Profile = () => {
@@ -47,6 +47,7 @@ const Profile = () => {
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
@@ -60,14 +61,48 @@ const Profile = () => {
         
         setIsLoading(true);
         
-        const userData = {
-          name: "John Doe",
-          email: "john.doe@example.com",
-          phone_number: "(123) 456-7890",
-          address: "123 Main St, New York, NY 10001"
-        };
+        // Get user data from localStorage
+        const storedUserData = localStorage.getItem("user");
+        if (storedUserData) {
+          const userData = JSON.parse(storedUserData);
+          setProfile({
+            name: userData.name || "",
+            email: userData.email || "",
+            phone_number: userData.phone_number || "",
+            address: userData.address || "",
+            profile_picture: userData.profile_picture || ""
+          });
+          
+          if (userData.profile_picture) {
+            setImagePreview(userData.profile_picture);
+          }
+        }
         
-        setProfile(userData);
+        // Try to get the most up-to-date user data from the API
+        try {
+          const response = await authAPI.getCurrentUser();
+          if (response && response.data) {
+            const userData = response.data;
+            setProfile({
+              name: userData.name || profile.name,
+              email: userData.email || profile.email,
+              phone_number: userData.phone_number || profile.phone_number,
+              address: userData.address || profile.address,
+              profile_picture: userData.profile_picture || profile.profile_picture
+            });
+            
+            if (userData.profile_picture) {
+              setImagePreview(userData.profile_picture);
+            }
+            
+            // Update localStorage with the latest data
+            localStorage.setItem("user", JSON.stringify(userData));
+          }
+        } catch (apiError) {
+          console.error("Failed to fetch user data from API:", apiError);
+          // Continue with the data from localStorage
+        }
+        
         setIsAuthenticated(true);
         setIsLoading(false);
       } catch (error) {
@@ -103,20 +138,104 @@ const Profile = () => {
     try {
       setIsLoading(true);
       
-      setTimeout(() => {
+      // First upload profile picture if it was changed
+      let profilePictureUrl = profile.profile_picture;
+      if (imagePreview && imagePreview !== profile.profile_picture) {
+        try {
+          // If imagePreview starts with "data:" it's a newly selected file
+          if (imagePreview.startsWith('data:')) {
+            setIsUploadingImage(true);
+            // Convert base64 to blob
+            const response = await fetch(imagePreview);
+            const blob = await response.blob();
+            const file = new File([blob], "profile-picture.jpg", { 
+              type: blob.type || 'image/jpeg' 
+            });
+            
+            // Create form data for upload
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            console.log("Uploading image to Cloudinary...");
+            
+            // Upload the image to Cloudinary via our backend
+            const uploadResponse = await authAPI.uploadProfilePicture(formData);
+            console.log("Upload response:", uploadResponse);
+            
+            if (uploadResponse && uploadResponse.data && uploadResponse.data.imageUrl) {
+              profilePictureUrl = uploadResponse.data.imageUrl;
+              console.log("New profile picture URL:", profilePictureUrl);
+              
+              // Update imagePreview with the Cloudinary URL
+              setImagePreview(profilePictureUrl);
+            } else {
+              console.error("Invalid upload response structure:", uploadResponse);
+              toast.error("Failed to process uploaded image");
+              setIsUploadingImage(false);
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error("Failed to upload profile picture:", error);
+          toast.error("Failed to upload profile picture");
+          setIsUploadingImage(false);
+          setIsLoading(false);
+          return;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+      
+      // Update the user profile
+      const updateData = {
+        name: profile.name,
+        email: profile.email,
+        phone_number: profile.phone_number,
+        address: profile.address,
+        profile_picture: profilePictureUrl
+      };
+      
+      console.log("Updating profile with data:", updateData);
+      
+      // Send the update to the backend
+      const response = await authAPI.updateProfile(updateData);
+      console.log("Profile update response:", response);
+      
+      if (response && response.data) {
+        // Update the local state
+        setProfile({
+          ...profile,
+          ...response.data,
+          profile_picture: profilePictureUrl || profile.profile_picture
+        });
+        
+        // Update the data in localStorage
+        const storedUserData = localStorage.getItem("user");
+        if (storedUserData) {
+          const userData = JSON.parse(storedUserData);
+          const updatedUserData = {
+            ...userData,
+            ...updateData
+          };
+          localStorage.setItem("user", JSON.stringify(updatedUserData));
+          console.log("Updated user data in localStorage:", updatedUserData);
+        }
+        
         toast.success("Profile updated successfully!");
         setIsEditing(false);
-        setIsLoading(false);
-      }, 1000);
+      }
     } catch (error) {
       console.error("Error updating profile:", error);
       toast.error("Failed to update profile");
+    } finally {
       setIsLoading(false);
     }
   };
   
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("user");
     navigate("/login");
     toast.success("Logged out successfully!");
   };
@@ -151,10 +270,14 @@ const Profile = () => {
                   <div className="flex flex-col items-center space-y-4">
                     <div 
                       className="w-24 h-24 rounded-full bg-dentist-100 flex items-center justify-center relative overflow-hidden"
-                      onClick={isEditing ? handleImageClick : undefined}
-                      style={{cursor: isEditing ? 'pointer' : 'default'}}
+                      onClick={isEditing && !isUploadingImage ? handleImageClick : undefined}
+                      style={{cursor: (isEditing && !isUploadingImage) ? 'pointer' : 'default'}}
                     >
-                      {imagePreview ? (
+                      {isUploadingImage ? (
+                        <div className="absolute inset-0 bg-gray-200 bg-opacity-80 flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-dentist-600"></div>
+                        </div>
+                      ) : imagePreview ? (
                         <img 
                           src={imagePreview} 
                           alt="Profile" 
@@ -164,7 +287,7 @@ const Profile = () => {
                         <User className="w-12 h-12 text-dentist-600" />
                       )}
                       
-                      {isEditing && (
+                      {isEditing && !isUploadingImage && (
                         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                           <Camera className="w-8 h-8 text-white" />
                         </div>
@@ -240,10 +363,14 @@ const Profile = () => {
                     <div className="flex flex-col items-center mb-6">
                       <div 
                         className="w-28 h-28 rounded-full bg-dentist-100 flex items-center justify-center relative overflow-hidden"
-                        onClick={isEditing ? handleImageClick : undefined}
-                        style={{cursor: isEditing ? 'pointer' : 'default'}}
+                        onClick={isEditing && !isUploadingImage ? handleImageClick : undefined}
+                        style={{cursor: (isEditing && !isUploadingImage) ? 'pointer' : 'default'}}
                       >
-                        {imagePreview ? (
+                        {isUploadingImage ? (
+                          <div className="absolute inset-0 bg-gray-200 bg-opacity-80 flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-dentist-600"></div>
+                          </div>
+                        ) : imagePreview ? (
                           <img 
                             src={imagePreview} 
                             alt="Profile" 
@@ -253,7 +380,7 @@ const Profile = () => {
                           <User className="w-14 h-14 text-dentist-600" />
                         )}
                         
-                        {isEditing && (
+                        {isEditing && !isUploadingImage && (
                           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                             <Camera className="w-10 h-10 text-white" />
                           </div>

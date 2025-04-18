@@ -1,4 +1,14 @@
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsBoolean, Min } from 'class-validator';
+import { IsNotEmpty, IsString, IsNumber, IsOptional, IsBoolean, Min, IsEnum } from 'class-validator';
+
+// Define service categories
+export enum ServiceCategory {
+  GENERAL = 'general',
+  COSMETIC = 'cosmetic',
+  ORTHODONTIC = 'orthodontic',
+  SURGICAL = 'surgical',
+  PREVENTIVE = 'preventive',
+  PEDIATRIC = 'pediatric',
+}
 
 export class CreateServiceDto {
   @IsNotEmpty()
@@ -26,4 +36,8 @@ export class CreateServiceDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsEnum(ServiceCategory)
+  category?: ServiceCategory = ServiceCategory.GENERAL;
 }

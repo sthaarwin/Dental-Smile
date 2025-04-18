@@ -78,7 +78,7 @@ const AnimatedRoutes = () => {
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/dashboard/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/dashboard/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
-            
+       
             <Route path="*" element={<NotFound />} />
           </Routes>
         </motion.main>

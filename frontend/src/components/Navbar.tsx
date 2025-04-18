@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, User, LogIn, UserCircle } from "lucide-react";
+import { Menu, X, User, LogIn, UserCircle, Settings, Grid } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,7 +56,10 @@ const Navbar = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center gap-2">
-                    <UserCircle className="h-5 w-5" />
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.profile_picture} alt={user?.name} />
+                      <AvatarFallback>{user?.name?.charAt(0) || 'P'}</AvatarFallback>
+                    </Avatar>
                     {user?.name || 'Profile'}
                   </Button>
                 </DropdownMenuTrigger>
@@ -64,6 +68,20 @@ const Navbar = () => {
                     <Link to="/dashboard" className="flex items-center">
                       <User className="h-4 w-4 mr-2" />
                       Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  {user?.role === 'admin' && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/dashboard/services" className="flex items-center">
+                        <Grid className="h-4 w-4 mr-2" />
+                        Manage Services
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link to="/dashboard/settings" className="flex items-center">
+                      <Settings className="h-4 w-4 mr-2" />
+                      Settings
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -116,6 +134,13 @@ const Navbar = () => {
               Home
             </Link>
             <Link
+              to="/services"
+              className="block py-2 px-4 text-gray-700 hover:bg-gray-50 rounded"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Services
+            </Link>
+            <Link
               to="/dentists"
               className="block py-2 px-4 text-gray-700 hover:bg-gray-50 rounded"
               onClick={() => setIsMenuOpen(false)}
@@ -140,11 +165,22 @@ const Navbar = () => {
               {token ? (
                 <>
                   <Button variant="ghost" className="w-full justify-start" asChild>
-                    <Link to="/dashboard">
-                      <User className="h-4 w-4 mr-2" />
+                    <Link to="/dashboard" className="flex items-center">
+                      <Avatar className="h-6 w-6 mr-2">
+                        <AvatarImage src={user?.profile_picture} alt={user?.name} />
+                        <AvatarFallback>{user?.name?.charAt(0) || 'P'}</AvatarFallback>
+                      </Avatar>
                       Dashboard
                     </Link>
                   </Button>
+                  {user?.role === 'admin' && (
+                    <Button variant="ghost" className="w-full justify-start" asChild>
+                      <Link to="/dashboard/services">
+                        <Grid className="h-4 w-4 mr-2" />
+                        Manage Services
+                      </Link>
+                    </Button>
+                  )}
                   <Button 
                     variant="ghost" 
                     onClick={handleLogout}

@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Card,
   CardContent,
@@ -168,9 +169,10 @@ const Dashboard = () => {
               <Card className="sticky top-24">
                 <CardHeader>
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 rounded-full bg-dentist-100 flex items-center justify-center">
-                      <User className="w-6 h-6 text-dentist-600" />
-                    </div>
+                    <Avatar className="w-12 h-12">
+                      <AvatarImage src={user?.profile_picture} alt={user?.name} />
+                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
                     <div>
                       <CardTitle>{user?.name}</CardTitle>
                       <CardDescription>{user?.email}</CardDescription>

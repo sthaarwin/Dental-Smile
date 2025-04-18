@@ -30,3 +30,7 @@ node_modules/
 # OS specific
 .DS_Store
 Thumbs.db
+
+
+#temporary files
+about.txt
