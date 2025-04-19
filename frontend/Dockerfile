@@ -1,19 +1,15 @@
-FROM node:18-alpine
+# Use Node image to build the application
+FROM node:18 as build
 
 WORKDIR /app
 
-# Install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy the project
-COPY . .
 
-ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
-ENV NODE_ENV=development
-ENV CHOKIDAR_USEPOLLING=true
+COPY . .
+RUN npm run build
 
 EXPOSE 8080
 
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["npm", "run", "dev"]
