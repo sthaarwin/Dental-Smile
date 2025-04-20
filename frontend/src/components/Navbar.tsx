@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, User, LogIn, UserCircle, Settings, Grid } from "lucide-react";
+import { Menu, X, User, LogIn, UserCircle, Settings, Grid, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -71,12 +71,20 @@ const Navbar = () => {
                     </Link>
                   </DropdownMenuItem>
                   {user?.role === 'admin' && (
-                    <DropdownMenuItem asChild>
-                      <Link to="/dashboard/services" className="flex items-center">
-                        <Grid className="h-4 w-4 mr-2" />
-                        Manage Services
-                      </Link>
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin" className="flex items-center">
+                          <Shield className="h-4 w-4 mr-2" />
+                          Admin Page
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/dashboard/services" className="flex items-center">
+                          <Grid className="h-4 w-4 mr-2" />
+                          Manage Services
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
                   )}
                   <DropdownMenuItem asChild>
                     <Link to="/dashboard/settings" className="flex items-center">
@@ -174,12 +182,20 @@ const Navbar = () => {
                     </Link>
                   </Button>
                   {user?.role === 'admin' && (
-                    <Button variant="ghost" className="w-full justify-start" asChild>
-                      <Link to="/dashboard/services">
-                        <Grid className="h-4 w-4 mr-2" />
-                        Manage Services
-                      </Link>
-                    </Button>
+                    <>
+                      <Button variant="ghost" className="w-full justify-start" asChild>
+                        <Link to="/admin">
+                          <Shield className="h-4 w-4 mr-2" />
+                          Admin Page
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" className="w-full justify-start" asChild>
+                        <Link to="/dashboard/services">
+                          <Grid className="h-4 w-4 mr-2" />
+                          Manage Services
+                        </Link>
+                      </Button>
+                    </>
                   )}
                   <Button 
                     variant="ghost" 

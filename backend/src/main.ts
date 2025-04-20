@@ -11,7 +11,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       configService.get<string>('FRONTEND_URL') || 'http://localhost:5173', 
-      'http://localhost:3000'
+      'http://localhost:8000'
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
@@ -22,7 +22,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe());
   app.useGlobalFilters(new HttpExceptionFilter());
   
-  const port = configService.get<number>('PORT') || 3000;
+  const port = configService.get<number>('PORT') || 8000;
   await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
 }

@@ -26,6 +26,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import Footer from "./components/Footer";
+import Admin from "./pages/Admin";
 
 // Initialize queryClient with secure configuration
 const queryClient = new QueryClient({
@@ -78,6 +79,8 @@ const AnimatedRoutes = () => {
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/dashboard/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/dashboard/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+            
+            <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
        
             <Route path="*" element={<NotFound />} />
           </Routes>
