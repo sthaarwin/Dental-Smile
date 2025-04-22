@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Filter, Star } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
@@ -24,7 +23,7 @@ const specialties = [
 ];
 
 const DentistFilter = ({ onFilterChange, dentists }: DentistFilterProps) => {
-  const [rating, setRating] = useState([4]);
+  const [rating, setRating] = useState([0]); // Changed from 4 to 0 to include new dentists
   const [distance, setDistance] = useState([10]);
   const [availability, setAvailability] = useState(false);
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
@@ -40,7 +39,8 @@ const DentistFilter = ({ onFilterChange, dentists }: DentistFilterProps) => {
   const handleApplyFilters = () => {
     // Apply filters to dentists array
     const filtered = dentists.filter((dentist) => {
-      // Filter by rating
+      // Filter by rating - include new dentists with 0 rating regardless of minimum rating setting
+      if (dentist.rating === 0) return true; // Always include new dentists
       if (dentist.rating < rating[0]) return false;
       
       // Filter by specialties if any selected
@@ -88,12 +88,13 @@ const DentistFilter = ({ onFilterChange, dentists }: DentistFilterProps) => {
           <div className="px-1">
             <Slider
               value={rating}
-              min={1}
+              min={0}
               max={5}
               step={1}
               onValueChange={setRating}
             />
             <div className="flex justify-between mt-1 text-sm text-gray-500">
+              <span>0</span>
               <span>1</span>
               <span>2</span>
               <span>3</span>
@@ -102,7 +103,7 @@ const DentistFilter = ({ onFilterChange, dentists }: DentistFilterProps) => {
             </div>
           </div>
           <p className="text-sm font-medium text-dentist-600 mt-2">
-            {rating[0]}+ Stars
+            {rating[0] === 0 ? "All Ratings (including new dentists)" : `${rating[0]}+ Stars`}
           </p>
         </div>
 

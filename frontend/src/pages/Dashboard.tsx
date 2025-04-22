@@ -67,12 +67,27 @@ const Dashboard = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [newDate, setNewDate] = useState<Date>();
   const [newTime, setNewTime] = useState<string>();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Load user data
     const userData = localStorage.getItem("user");
     if (userData) {
-      setUser(JSON.parse(userData));
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+      
+      // Redirect dentists and admins to their respective dashboards
+      if (parsedUser.role === 'dentist') {
+        navigate("/dentist-dashboard");
+        return;
+      } else if (parsedUser.role === 'admin') {
+        navigate("/admin");
+        return;
+      } else if (parsedUser.role !== 'patient') {
+        toast.error("Invalid user role");
+        navigate("/login");
+        return;
+      }
     }
 
     const fetchData = async () => {
@@ -81,11 +96,13 @@ const Dashboard = () => {
         setAppointments(appointmentsResponse.data);
       } catch (error) {
         toast.error('Failed to load appointments');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");

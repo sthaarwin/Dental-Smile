@@ -124,6 +124,34 @@ export const appointmentAPI = {
     api.put(`/appointments/${id}/reschedule/`, data),
   cancelAppointment: (id: number) => 
     api.delete(`/appointments/${id}/`),
+  updateAppointmentStatus: (id: number, status: string) =>
+    api.put(`/appointments/${id}/status`, { status }),
+};
+
+export const dentistAPI = {
+  // Get all dentists with optional filtering
+  getAllDentists: (params?: {
+    specialty?: string;
+    city?: string;
+    state?: string;
+    search?: string;
+    acceptingNewPatients?: boolean;
+    page?: number;
+    limit?: number;
+  }) => api.get('/dentists', { params }),
+  
+  // Get a specific dentist by ID
+  getDentistById: (id: string) => api.get(`/dentists/${id}`),
+  
+  // Get dentist availability for appointment booking
+  getDentistAvailability: (id: string, date: string) => 
+    api.get(`/dentists/${id}/availability`, { params: { date } }),
+  
+  // Get the patients of a specific dentist (for dentist dashboard)
+  getDentistPatients: (id?: string) => api.get(`/dentists/patients`),
+  
+  // Get the schedule of a dentist
+  getDentistSchedule: (id?: string) => api.get(`/dentists/schedule`),
 };
 
 export const userAPI = {

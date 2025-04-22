@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet";
 import Navbar from "@/components/Navbar";
@@ -6,17 +6,61 @@ import Footer from "@/components/Footer";
 import SearchBar from "@/components/SearchBar";
 import DentistCard from "@/components/DentistCard";
 import DentistFilter from "@/components/DentistFilter";
-import { mockDentists } from "@/data/mockDentists";
 import { Dentist } from "@/types/dentist";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { dentistAPI } from "@/services/api";
+import { mockDentists } from "@/data/mockDentists"; // Import mock data
 
 const DentistList = () => {
-  const [filteredDentists, setFilteredDentists] = useState<Dentist[]>(mockDentists);
+  const [dentists, setDentists] = useState<Dentist[]>([]);
+  const [filteredDentists, setFilteredDentists] = useState<Dentist[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const navigate = useNavigate();
+
+  // Fetch all dentists from the backend or use mock data
+  useEffect(() => {
+    const fetchDentists = async () => {
+      setIsLoading(true);
+      try {
+        const response = await dentistAPI.getAllDentists();
+        if (response.data) {
+          setDentists(response.data);
+          setFilteredDentists(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching dentists:", error);
+        toast.error("Using demo data - backend API not available");
+        // Fallback to mock data when API fails
+        setDentists(mockDentists);
+        setFilteredDentists(mockDentists);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchDentists();
+  }, []);
 
   const handleSearch = (term: string) => {
     setSearchTerm(term);
-    // Additional search logic could be added here if needed
+    
+    if (!term.trim()) {
+      setFilteredDentists(dentists);
+      return;
+    }
+    
+    const lowercaseTerm = term.toLowerCase();
+    const results = dentists.filter((dentist) => 
+      dentist.firstName.toLowerCase().includes(lowercaseTerm) ||
+      dentist.lastName.toLowerCase().includes(lowercaseTerm) ||
+      dentist.specialty.toLowerCase().includes(lowercaseTerm) ||
+      dentist.city.toLowerCase().includes(lowercaseTerm) ||
+      dentist.state.toLowerCase().includes(lowercaseTerm)
+    );
+    
+    setFilteredDentists(results);
   };
 
   return (
@@ -42,49 +86,81 @@ const DentistList = () => {
               <div className="sticky top-24">
                 <DentistFilter 
                   onFilterChange={setFilteredDentists}
-                  dentists={mockDentists}
+                  dentists={dentists}
                 />
               </div>
             </div>
             
             <div className="lg:col-span-3">
-              <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex justify-between items-center">
-                <p className="text-gray-600">
-                  <span className="font-medium">{filteredDentists.length}</span> dentists found
-                  {searchTerm && <span> for "{searchTerm}"</span>}
-                </p>
-                <div className="flex items-center">
-                  <label htmlFor="sort" className="text-sm text-gray-600 mr-2">Sort by:</label>
-                  <select id="sort" className="text-sm border rounded p-1">
-                    <option value="recommended">Recommended</option>
-                    <option value="rating">Highest Rating</option>
-                    <option value="reviews">Most Reviews</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {filteredDentists.map((dentist) => (
-                  <div 
-                    key={dentist.id} 
-                    className="transform transition duration-200 hover:scale-[1.02] hover:shadow-md"
-                  >
-                    <DentistCard dentist={dentist} />
+              {isLoading ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="flex flex-col items-center">
+                    <Loader2 className="w-12 h-12 text-dentist-600 animate-spin mb-4" />
+                    <p className="text-dentist-600">Loading dentists...</p>
                   </div>
-                ))}
-              </div>
-              
-              {filteredDentists.length === 0 && (
-                <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-                  <h3 className="text-xl font-medium text-gray-900 mb-2">No dentists found</h3>
-                  <p className="text-gray-600 mb-4">Try adjusting your search or filter criteria.</p>
-                  <button 
-                    onClick={() => setFilteredDentists(mockDentists)} 
-                    className="bg-dentist-600 hover:bg-dentist-700 text-white px-4 py-2 rounded-md"
-                  >
-                    Clear filters
-                  </button>
                 </div>
+              ) : (
+                <>
+                  <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex justify-between items-center">
+                    <p className="text-gray-600">
+                      <span className="font-medium">{filteredDentists.length}</span> dentists found
+                      {searchTerm && <span> for "{searchTerm}"</span>}
+                    </p>
+                    <div className="flex items-center">
+                      <label htmlFor="sort" className="text-sm text-gray-600 mr-2">Sort by:</label>
+                      <select 
+                        id="sort" 
+                        className="text-sm border rounded p-1"
+                        onChange={(e) => {
+                          const sorted = [...filteredDentists];
+                          if (e.target.value === 'rating') {
+                            sorted.sort((a, b) => {
+                              // Handle new dentists (0 rating) when sorting
+                              if (a.rating === 0 && b.rating === 0) return 0;  // Both are new dentists
+                              if (a.rating === 0) return 1;  // Put single new dentist after rated ones
+                              if (b.rating === 0) return -1; // Put single new dentist after rated ones
+                              return b.rating - a.rating;    // Normal rating comparison
+                            });
+                          } else if (e.target.value === 'reviews') {
+                            sorted.sort((a, b) => b.reviewCount - a.reviewCount);
+                          }
+                          setFilteredDentists(sorted);
+                        }}
+                      >
+                        <option value="recommended">Recommended</option>
+                        <option value="rating">Highest Rating</option>
+                        <option value="reviews">Most Reviews</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {filteredDentists.length > 0 ? (
+                      filteredDentists.map((dentist) => (
+                        <div 
+                          key={dentist.id} 
+                          className="transform transition duration-200 hover:scale-[1.02] hover:shadow-md"
+                        >
+                          <DentistCard dentist={dentist} />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-2 bg-white rounded-lg shadow-sm p-8 text-center">
+                        <h3 className="text-xl font-medium text-gray-900 mb-2">No dentists found</h3>
+                        <p className="text-gray-600 mb-4">Try adjusting your search or filter criteria.</p>
+                        <button 
+                          onClick={() => {
+                            setFilteredDentists(dentists);
+                            setSearchTerm("");
+                          }} 
+                          className="bg-dentist-600 hover:bg-dentist-700 text-white px-4 py-2 rounded-md"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           </div>

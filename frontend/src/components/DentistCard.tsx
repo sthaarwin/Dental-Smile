@@ -40,10 +40,18 @@ const DentistCard = ({ dentist }: DentistCardProps) => {
           />
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
             <div className="flex items-center text-white">
-              <Star className="h-4 w-4 text-yellow-400 mr-1 flex-shrink-0" />
-              <span className="font-semibold">{dentist.rating}</span>
-              <span className="mx-1 text-sm text-gray-300">•</span>
-              <span className="text-sm">{dentist.reviewCount} reviews</span>
+              {dentist.rating > 0 ? (
+                <>
+                  <Star className="h-4 w-4 text-yellow-400 mr-1 flex-shrink-0" />
+                  <span className="font-semibold">{dentist.rating}</span>
+                  <span className="mx-1 text-sm text-gray-300">•</span>
+                  <span className="text-sm">{dentist.reviewCount} reviews</span>
+                </>
+              ) : (
+                <span className="bg-dentist-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                  New Dentist
+                </span>
+              )}
             </div>
           </div>
         </div>

@@ -66,7 +66,7 @@ import {
 import { toast } from "sonner";
 import { appointmentAPI, servicesAPI } from "@/services/api";
 import { DentalService } from "@/types/service";
-import axios from "axios";
+import api from "@/services/api"; // Import the configured API instance
 
 interface User {
   id: string;
@@ -133,47 +133,92 @@ const Admin = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch users data
-      const usersResponse = await axios.get('/api/users', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      // Debug current user
+      const currentUserData = localStorage.getItem("user");
+      const token = localStorage.getItem("token");
+      console.log("Current user data:", currentUserData ? JSON.parse(currentUserData) : null);
+      console.log("Auth token exists:", !!token);
       
-      // Ensure userData is an array
-      const userData = Array.isArray(usersResponse.data) ? usersResponse.data : [];
-      setUsers(userData);
+      // Fetch users data with explicit error handling
+      try {
+        console.log("Attempting to fetch users data...");
+        const usersResponse = await api.get('/users');
+        
+        console.log("Users API raw response:", usersResponse);
+        console.log("Users API response data:", usersResponse.data);
+        
+        // Ensure userData is an array and map the fields to match our expected User interface
+        const userData = Array.isArray(usersResponse.data) ? usersResponse.data.map(user => ({
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          phone_number: user.phone_number,
+          role: user.role,
+          profile_picture: user.profile_picture,
+          created_at: user.createdAt || user.created_at
+        })) : [];
+        
+        console.log("Mapped user data:", userData);
+        setUsers(userData);
+        
+        // Calculate stats
+        setTotalPatients(userData.filter(user => user.role === "patient").length);
+        setTotalDentists(userData.filter(user => user.role === "dentist").length);
+      } catch (usersError) {
+        console.error("Error fetching users:", usersError);
+        console.log("Users API error response:", usersError.response?.data);
+        console.log("Users API error status:", usersError.response?.status);
+      }
       
-      // Calculate stats
-      setTotalPatients(userData.filter(user => user.role === "patient").length);
-      setTotalDentists(userData.filter(user => user.role === "dentist").length);
+      // Continue with other API calls...
+      try {
+        // Fetch appointments data
+        console.log("Attempting to fetch appointments data...");
+        const appointmentsResponse = await api.get('/appointments');
+        
+        console.log("Appointments API response:", appointmentsResponse.data);
+        
+        // Map appointment data to match our expected interface
+        const appointmentData = Array.isArray(appointmentsResponse.data) ? appointmentsResponse.data.map(apt => ({
+          id: apt._id || apt.id,
+          date: apt.date,
+          time: apt.time,
+          patient: apt.patient,
+          dentist: apt.dentist,
+          service: apt.service,
+          status: apt.status
+        })) : [];
+        
+        setAppointments(appointmentData);
+        setTotalAppointments(appointmentData.length);
+        setCompletedAppointments(appointmentData.filter(apt => apt.status === "completed").length);
+      } catch (appointmentsError) {
+        console.error("Error fetching appointments:", appointmentsError);
+      }
       
-      // Fetch appointments data
-      const appointmentsResponse = await axios.get('/api/appointments', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      // Ensure appointmentData is an array
-      const appointmentData = Array.isArray(appointmentsResponse.data) ? appointmentsResponse.data : [];
-      setAppointments(appointmentData);
-      setTotalAppointments(appointmentData.length);
-      setCompletedAppointments(appointmentData.filter(apt => apt.status === "completed").length);
-      
-      // Fetch services data
-      const servicesResponse = await servicesAPI.getAllServices();
-      // Map the service data to match our expected interface
-      const serviceData = servicesResponse.data.data || [];
-      const mappedServices = serviceData.map((service: any) => ({
-        ...service,
-        id: service._id, // Map _id to id for frontend usage
-        active: service.isActive // Map isActive to active for frontend usage
-      })) as DentalService[];
-      setServices(mappedServices);
+      try {
+        // Fetch services data
+        console.log("Attempting to fetch services data...");
+        const servicesResponse = await api.get('/services');
+        
+        console.log("Services API response:", servicesResponse.data);
+        
+        // Map the service data to match our expected interface
+        const serviceData = Array.isArray(servicesResponse.data) ? servicesResponse.data : [];
+        const mappedServices = serviceData.map((service) => ({
+          ...service,
+          _id: service._id || service.id,
+          id: service._id || service.id,
+          isActive: service.isActive || service.active
+        })) as DentalService[];
+        
+        setServices(mappedServices);
+      } catch (servicesError) {
+        console.error("Error fetching services:", servicesError);
+      }
       
     } catch (error) {
-      console.error("Error fetching admin data:", error);
+      console.error("Error in fetchData:", error);
       toast.error("Failed to load data. Please try again.");
     } finally {
       setIsLoading(false);
@@ -201,11 +246,7 @@ const Admin = () => {
     if (!selectedUser) return;
     
     try {
-      await axios.put(`/api/users/${selectedUser.id}`, editUserForm, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      await api.put(`/users/${selectedUser.id}`, editUserForm);
       
       // Update local state
       setUsers(users.map(user => 
@@ -229,11 +270,7 @@ const Admin = () => {
     if (!selectedUser) return;
 
     try {
-      await axios.delete(`/api/users/${selectedUser.id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      await api.delete(`/users/${selectedUser.id}`);
       
       // Update local state
       setUsers(users.filter(user => user.id !== selectedUser.id));
@@ -249,11 +286,7 @@ const Admin = () => {
 
   const handleUpdateAppointmentStatus = async (id: number, status: string) => {
     try {
-      await axios.patch(`/api/appointments/${id}/status`, { status }, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
+      await api.patch(`/appointments/${id}/status`, { status });
       
       // Update local state
       setAppointments(appointments.map(apt => 

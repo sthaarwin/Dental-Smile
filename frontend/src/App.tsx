@@ -27,6 +27,8 @@ import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import Footer from "./components/Footer";
 import Admin from "./pages/Admin";
+import DentistDashboard from "./pages/DentistDashboard";
+import RoleDashboardRedirect from "./components/RoleDashboardRedirect";
 
 // Initialize queryClient with secure configuration
 const queryClient = new QueryClient({
@@ -76,9 +78,16 @@ const AnimatedRoutes = () => {
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/faq" element={<FAQ />} />
             
+            {/* Role-based dashboard routing */}
+            <Route path="/my-dashboard" element={<PrivateRoute><RoleDashboardRedirect /></PrivateRoute>} />
+            
+            {/* Role-specific dashboards */}
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/dashboard/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/dashboard/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+            
+            <Route path="/dentist-dashboard" element={<PrivateRoute><DentistDashboard /></PrivateRoute>} />
+            <Route path="/dentist-dashboard/patients/:id" element={<PrivateRoute><DentistDashboard /></PrivateRoute>} />
             
             <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
        
