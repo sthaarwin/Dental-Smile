@@ -120,6 +120,7 @@ export const authAPI = {
 
 export const appointmentAPI = {
   getAppointments: () => api.get('/appointments/'),
+  myAppointments: () => api.get('/appointments/my-appointments'),
   rescheduleAppointment: (id: number, data: any) => 
     api.put(`/appointments/${id}/reschedule/`, data),
   cancelAppointment: (id: number) => 

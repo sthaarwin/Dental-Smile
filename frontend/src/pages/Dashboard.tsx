@@ -92,9 +92,11 @@ const Dashboard = () => {
 
     const fetchData = async () => {
       try {
-        const appointmentsResponse = await appointmentAPI.getAppointments();
+        // Use myAppointments() instead of getAppointments() for patients
+        const appointmentsResponse = await appointmentAPI.myAppointments();
         setAppointments(appointmentsResponse.data);
       } catch (error) {
+        console.error("Error loading appointments:", error);
         toast.error('Failed to load appointments');
       } finally {
         setIsLoading(false);
@@ -127,7 +129,8 @@ const Dashboard = () => {
         time: newTime
       });
 
-      const updatedAppointments = await appointmentAPI.getAppointments();
+      // Use myAppointments instead of getAppointments
+      const updatedAppointments = await appointmentAPI.myAppointments();
       setAppointments(updatedAppointments.data);
       
       toast.success("Appointment rescheduled successfully");
@@ -151,7 +154,8 @@ const Dashboard = () => {
     try {
       await appointmentAPI.cancelAppointment(selectedAppointment.id);
       
-      const updatedAppointments = await appointmentAPI.getAppointments();
+      // Use myAppointments instead of getAppointments
+      const updatedAppointments = await appointmentAPI.myAppointments();
       setAppointments(updatedAppointments.data);
       
       toast.success("Appointment cancelled successfully");

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
   FileCheck,
   X,
   Plus,
+  Loader2,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -34,9 +35,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import api from "@/services/api"; // Import API for dentist application
 
 const DentistSignup = () => {
   const [step, setStep] = useState(1);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<any>(null);
   const [formData, setFormData] = useState({
     // Personal Information
     firstName: "",
@@ -68,9 +73,55 @@ const DentistSignup = () => {
     bio: "",
     services: [] as string[],
     languages: "",
+    
+    // Application status
+    applicationStatus: "pending",
   });
 
   const [inputService, setInputService] = useState("");
+
+  // Check authentication and load user data
+  useEffect(() => {
+    const checkAuth = async () => {
+      setIsLoading(true);
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        // Get user data from localStorage
+        const userString = localStorage.getItem("user");
+        if (userString) {
+          const userData = JSON.parse(userString);
+          setUser(userData);
+          
+          // Pre-fill form with user data
+          setFormData(prev => ({
+            ...prev,
+            firstName: userData.name?.split(' ')[0] || "",
+            lastName: userData.name?.split(' ').slice(1).join(' ') || "",
+            email: userData.email || "",
+            phone: userData.phone_number || "",
+          }));
+        }
+        
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error("Error loading user data:", error);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
 
   // Available dental services for the dropdown
   const availableServices = [
@@ -116,11 +167,32 @@ const DentistSignup = () => {
     if (step > 1) setStep(step - 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would normally validate and submit to your backend
-    console.log("Form submitted:", formData);
-    toast.success("Registration submitted successfully!");
+    
+    try {
+      // Format the data for the API
+      const dentistApplicationData = {
+        ...formData,
+        userId: user?.id, // Link to existing user account
+        specialties: formData.specialties.join(', '),
+        services: formData.services,
+        languages: formData.languages.split(',').map(lang => lang.trim()),
+        acceptedInsurance: formData.acceptedInsurance.split(',').map(insurance => insurance.trim()),
+      };
+      
+      // Make API call to create dentist application
+      await api.post('/dentists/apply', dentistApplicationData);
+      
+      toast.success("Application submitted successfully! Our team will review your details and be in touch shortly.");
+      
+      // Redirect to dashboard or confirmation page
+      window.location.href = "/dashboard";
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to submit application";
+      toast.error(errorMessage);
+      console.error("Application submission error:", error);
+    }
   };
 
   const addService = (service: string) => {
@@ -135,8 +207,20 @@ const DentistSignup = () => {
   };
 
   const handleServiceSelect = (value: string) => {
-    addService(value);
+    if (value === "custom") {
+      setInputService("custom");
+    } else {
+      addService(value);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-12 w-12 text-dentist-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white">
@@ -218,6 +302,18 @@ const DentistSignup = () => {
               {/* Step 1: Personal Information */}
               {step === 1 && (
                 <div className="p-8">
+                  {isAuthenticated && (
+                    <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-100">
+                      <p className="text-green-800 flex items-center">
+                        <CheckCircle className="h-5 w-5 mr-2" />
+                        <span className="font-medium">You're signed in as {user.name}</span>
+                      </p>
+                      <p className="text-sm text-green-700 mt-1">
+                        We've pre-filled some of your information. Please review and complete the rest of the form.
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
@@ -266,6 +362,7 @@ const DentistSignup = () => {
                           placeholder="john@example.com"
                           className="pl-10"
                           required
+                          readOnly={isAuthenticated}
                         />
                       </div>
                     </div>

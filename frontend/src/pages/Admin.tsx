@@ -37,6 +37,7 @@ import {
   Trash,
   Phone,
   Mail,
+  Stethoscope,
 } from "lucide-react";
 import {
   Dialog,
@@ -381,24 +382,15 @@ const Admin = () => {
                         Admin Dashboard
                       </Link>
                     </Button>
+                    
                     <Button
                       variant="ghost"
                       className="w-full justify-start"
                       asChild
                     >
-                      <Link to="/dashboard">
-                        <CalendarDays className="w-5 h-5 mr-3" />
-                        User Dashboard
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start"
-                      asChild
-                    >
-                      <Link to="/dashboard/services">
-                        <Grid className="w-5 h-5 mr-3" />
-                        Manage Services
+                      <Link to="/dashboard/dentists">
+                        <Stethoscope className="w-5 h-5 mr-3" />
+                        Manage Dentists
                       </Link>
                     </Button>
                     <Button

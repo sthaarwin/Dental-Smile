@@ -89,9 +89,9 @@ const Navbar = () => {
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
-                        <Link to="/dashboard/services" className="flex items-center">
-                          <Grid className="h-4 w-4 mr-2" />
-                          Manage Services
+                        <Link to="/dashboard/dentists/" className="flex items-center">
+                          <Stethoscope className="w-5 h-5 mr-3" />
+                          Manage Dentists
                         </Link>
                       </DropdownMenuItem>
                     </>
@@ -206,9 +206,9 @@ const Navbar = () => {
                         </Link>
                       </Button>
                       <Button variant="ghost" className="w-full justify-start" asChild>
-                        <Link to="/dashboard/services" onClick={() => setIsMenuOpen(false)}>
-                          <Grid className="h-4 w-4 mr-2" />
-                          Manage Services
+                        <Link to="/dashboard/dentists" onClick={() => setIsMenuOpen(false)}>
+                        <Stethoscope className="w-5 h-5 mr-3" />
+                          Manage Dentists
                         </Link>
                       </Button>
                     </>
