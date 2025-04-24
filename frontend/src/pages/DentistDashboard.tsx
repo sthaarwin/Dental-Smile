@@ -105,6 +105,14 @@ const DentistDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [appointmentFilter, setAppointmentFilter] = useState("all");
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [isTimeSlotDialogOpen, setIsTimeSlotDialogOpen] = useState(false);
+  const [newTimeSlot, setNewTimeSlot] = useState({
+    day: "Monday",
+    startTime: "",
+    endTime: "",
+    isAvailable: true
+  });
+
   const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
   useEffect(() => {
@@ -143,56 +151,63 @@ const DentistDashboard = () => {
       try {
         const appointmentsResponse = await appointmentAPI.getAppointments();
         setAppointments(appointmentsResponse.data);
+        
+        // Extract unique patients from appointments
+        if (appointmentsResponse.data && appointmentsResponse.data.length > 0) {
+          // Create a map to track unique patients by ID
+          const patientMap = new Map();
+          
+          appointmentsResponse.data.forEach(appointment => {
+            if (appointment.patientId && !patientMap.has(appointment.patientId)) {
+              patientMap.set(appointment.patientId, {
+                id: appointment.patientId,
+                name: appointment.patientName,
+                email: appointment.patientEmail || "",
+                phone: appointment.patientPhone || "",
+                lastVisit: appointment.date || "",
+                nextAppointment: null
+              });
+            }
+            
+            // Update next appointment for returning patients if this appointment is in the future
+            const today = new Date().toISOString().split('T')[0];
+            if (patientMap.has(appointment.patientId) && appointment.date > today && appointment.status === "scheduled") {
+              const patient = patientMap.get(appointment.patientId);
+              if (!patient.nextAppointment || appointment.date < patient.nextAppointment) {
+                patient.nextAppointment = appointment.date;
+              }
+            }
+            
+            // Update last visit date
+            if (patientMap.has(appointment.patientId) && appointment.status === "completed") {
+              const patient = patientMap.get(appointment.patientId);
+              if (!patient.lastVisit || appointment.date > patient.lastVisit) {
+                patient.lastVisit = appointment.date;
+              }
+            }
+          });
+          
+          // Convert map to array
+          const patientList = Array.from(patientMap.values());
+          setPatients(patientList);
+        }
       } catch (error) {
         console.error("Error fetching appointments:", error);
         toast.error("Failed to load appointments");
-      }
-      
-      // Fetch patients
-      try {
-        const patientsResponse = await api.get('/dentists/patients');
-        setPatients(patientsResponse.data);
-      } catch (error) {
-        console.error("Error fetching patients:", error);
-        // Use mock data for now
-        setPatients([
-          {
-            id: 1,
-            name: "John Doe",
-            email: "john@example.com",
-            phone: "(123) 456-7890",
-            lastVisit: "2023-04-15",
-            nextAppointment: "2023-05-20"
-          },
-          {
-            id: 2,
-            name: "Jane Smith",
-            email: "jane@example.com",
-            phone: "(987) 654-3210",
-            lastVisit: "2023-04-10",
-            nextAppointment: null
-          },
-        ]);
+        setAppointments([]);
+        setPatients([]);
       }
 
-      // Fetch schedule
+      // Fetch schedule - fixing the endpoint path to match backend controller
       try {
-        const scheduleResponse = await api.get('/dentists/schedule');
+        // Based on the backend code, use "api/schedules/dentist/:id" with the logged-in dentist id
+        const dentistId = dentist?.id;
+        const scheduleResponse = await api.get(`/schedules/dentist/${dentistId}`);
         setSchedule(scheduleResponse.data);
       } catch (error) {
         console.error("Error fetching schedule:", error);
-        // Use mock data
-        setSchedule({
-          "Monday": [
-            { id: 1, day: "Monday", startTime: "09:00", endTime: "10:00", isAvailable: true },
-            { id: 2, day: "Monday", startTime: "10:00", endTime: "11:00", isAvailable: true },
-          ],
-          "Tuesday": [
-            { id: 3, day: "Tuesday", startTime: "09:00", endTime: "10:00", isAvailable: true },
-            { id: 4, day: "Tuesday", startTime: "10:00", endTime: "11:00", isAvailable: false },
-          ],
-          // Add more days as needed
-        });
+        toast.error("Failed to load schedule data");
+        setSchedule({});
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -243,7 +258,11 @@ const DentistDashboard = () => {
       const updatedSlot = { ...slot, isAvailable: !slot.isAvailable };
       
       // Make API call to update the schedule
-      // await api.put(`/dentists/schedule/${slotId}`, { isAvailable: updatedSlot.isAvailable });
+      await api.put(`/schedules/dentist/${dentist?.id}`, {
+        day,
+        slotId,
+        isAvailable: updatedSlot.isAvailable
+      });
       
       // Update local state
       setSchedule({
@@ -255,6 +274,69 @@ const DentistDashboard = () => {
     } catch (error) {
       console.error("Error updating schedule:", error);
       toast.error("Failed to update schedule");
+    }
+  };
+
+  const handleAddTimeSlot = async () => {
+    if (!newTimeSlot.startTime || !newTimeSlot.endTime) {
+      toast.error("Please provide both start time and end time");
+      return;
+    }
+
+    try {
+      // Create the new time slot object with dentist ID
+      const timeSlotToAdd = {
+        ...newTimeSlot,
+        dentistId: dentist?.id
+      };
+      
+      // Make API call to add the time slot - using the correct endpoint path
+      const response = await api.post(`/schedules/dentist/${dentist?.id}`, timeSlotToAdd);
+      const addedSlot = response.data;
+      
+      // Update local state
+      setSchedule(prevSchedule => {
+        // Create an array for this day if it doesn't exist yet
+        const daySlots = prevSchedule[newTimeSlot.day] || [];
+        
+        // Add the new slot
+        return {
+          ...prevSchedule,
+          [newTimeSlot.day]: [...daySlots, addedSlot]
+        };
+      });
+      
+      // Reset form and close dialog
+      setNewTimeSlot({
+        day: "Monday",
+        startTime: "",
+        endTime: "",
+        isAvailable: true
+      });
+      setIsTimeSlotDialogOpen(false);
+      
+      toast.success("Time slot added successfully");
+    } catch (error) {
+      console.error("Error adding time slot:", error);
+      toast.error("Failed to add time slot");
+    }
+  };
+
+  const deleteTimeSlot = async (day: string, slotId: number) => {
+    try {
+      // Make API call to delete the time slot using the correct endpoint
+      await api.delete(`/schedules/dentist/${dentist?.id}/${slotId}`);
+      
+      // Update local state by removing the time slot
+      setSchedule((prevSchedule) => ({
+        ...prevSchedule,
+        [day]: prevSchedule[day].filter(slot => slot.id !== slotId)
+      }));
+      
+      toast.success("Time slot removed successfully");
+    } catch (error) {
+      console.error("Error deleting time slot:", error);
+      toast.error("Failed to remove time slot");
     }
   };
 
@@ -521,7 +603,7 @@ const DentistDashboard = () => {
                   <TabsContent value="schedule" className="space-y-4 py-4">
                     <div className="flex justify-between items-center">
                       <h2 className="text-2xl font-bold">Weekly Schedule</h2>
-                      <Button>
+                      <Button onClick={() => setIsTimeSlotDialogOpen(true)}>
                         <PlusCircle className="mr-2 h-4 w-4" />
                         Add Time Slot
                       </Button>
@@ -571,6 +653,13 @@ const DentistDashboard = () => {
                                               onClick={() => toggleTimeSlotAvailability(day, slot.id)}
                                             >
                                               {slot.isAvailable ? "Disable" : "Enable"}
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => deleteTimeSlot(day, slot.id)}
+                                            >
+                                              <XCircle className="h-4 w-4" />
                                             </Button>
                                           </TableCell>
                                         </TableRow>
@@ -726,6 +815,66 @@ const DentistDashboard = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Add Time Slot Dialog */}
+      <Dialog open={isTimeSlotDialogOpen} onOpenChange={setIsTimeSlotDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Time Slot</DialogTitle>
+            <DialogDescription>
+              Create a new time slot in your weekly schedule
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="day">Day of Week</Label>
+              <Select 
+                value={newTimeSlot.day} 
+                onValueChange={(day) => setNewTimeSlot({...newTimeSlot, day})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select day" />
+                </SelectTrigger>
+                <SelectContent>
+                  {weekdays.map((day) => (
+                    <SelectItem key={day} value={day}>{day}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startTime">Start Time</Label>
+                <Input
+                  id="startTime"
+                  type="time"
+                  value={newTimeSlot.startTime}
+                  onChange={(e) => setNewTimeSlot({...newTimeSlot, startTime: e.target.value})}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endTime">End Time</Label>
+                <Input
+                  id="endTime"
+                  type="time"
+                  value={newTimeSlot.endTime}
+                  onChange={(e) => setNewTimeSlot({...newTimeSlot, endTime: e.target.value})}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsTimeSlotDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAddTimeSlot}>
+              Add Time Slot
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

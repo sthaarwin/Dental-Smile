@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
-import api from "@/services/api"; // Import API for appointment creation
+import api from "@/services/api"; 
 
 import { Dentist } from "@/types/dentist";
 
@@ -321,7 +321,18 @@ const BookAppointment = () => {
   };
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-16 h-16 border-4 border-dentist-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-dentist-600 font-medium">Loading...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
   }
 
   if (!isAuthenticated) {
@@ -736,7 +747,6 @@ const BookAppointment = () => {
         </div>
       </main>
 
-  
     </div>
   );
 };
