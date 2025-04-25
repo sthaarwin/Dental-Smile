@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import Navbar from "@/components/Navbar";
@@ -9,6 +8,8 @@ import DentistFilter from "@/components/DentistFilter";
 import { mockDentists } from "@/data/mockDentists";
 import { Dentist } from "@/types/dentist";
 import { MapPin } from "lucide-react";
+import { dentistAPI } from "@/services/api";
+import { toast } from "sonner";
 
 const DentistListing = () => {
   const location = useLocation();
@@ -24,7 +25,44 @@ const DentistListing = () => {
   useEffect(() => {
     setIsLoading(true);
     
-    // Simulate API call with setTimeout
+    // Try to fetch dentists from API
+    const fetchDentists = async () => {
+      try {
+        // Build params based on search and location
+        const params: any = {};
+        if (initialSearch) params.search = initialSearch;
+        if (initialLocation) {
+          // Try to extract city/state from location string
+          if (initialLocation.includes(",")) {
+            const [city, state] = initialLocation.split(",").map(s => s.trim());
+            params.city = city;
+            if (state) params.state = state;
+          } else {
+            params.city = initialLocation;
+          }
+        }
+        
+        const response = await dentistAPI.getAllDentists(params);
+        
+        if (response.data && Array.isArray(response.data.data)) {
+          let results = response.data.data;
+          applyFilters(results);
+        } else {
+          // Fallback to mock data with filters
+          applyFiltersToMockData();
+        }
+      } catch (error) {
+        console.error("Error fetching dentists:", error);
+        // Fallback to mock data with filters
+        applyFiltersToMockData();
+      }
+    };
+    
+    fetchDentists();
+  }, [initialSearch, initialLocation, activeFilters]);
+
+  // Apply filters to mock data (fallback)
+  const applyFiltersToMockData = () => {
     setTimeout(() => {
       let results = [...mockDentists];
       
@@ -50,28 +88,33 @@ const DentistListing = () => {
         );
       }
       
-      // Apply rating filter
-      if (activeFilters.rating) {
-        results = results.filter((dentist) => dentist.rating >= activeFilters.rating);
-      }
-      
-      // Apply specialty filter
-      if (activeFilters.specialties && activeFilters.specialties.length > 0) {
-        results = results.filter((dentist) =>
-          activeFilters.specialties.includes(dentist.specialty)
-        );
-      }
-      
-      // Apply availability filter
-      if (activeFilters.availability) {
-        // For demo purposes, just filter dentists who are accepting new patients
-        results = results.filter((dentist) => dentist.acceptingNewPatients);
-      }
-      
-      setFilteredDentists(results);
-      setIsLoading(false);
+      applyFilters(results);
     }, 500);
-  }, [initialSearch, initialLocation, activeFilters]);
+  };
+  
+  // Apply active filters to results
+  const applyFilters = (results: Dentist[]) => {
+    // Apply rating filter
+    if (activeFilters.rating) {
+      results = results.filter((dentist) => dentist.rating >= activeFilters.rating);
+    }
+    
+    // Apply specialty filter
+    if (activeFilters.specialties && activeFilters.specialties.length > 0) {
+      results = results.filter((dentist) =>
+        activeFilters.specialties.includes(dentist.specialty)
+      );
+    }
+    
+    // Apply availability filter
+    if (activeFilters.availability) {
+      // For demo purposes, just filter dentists who are accepting new patients
+      results = results.filter((dentist) => dentist.acceptingNewPatients);
+    }
+    
+    setFilteredDentists(results);
+    setIsLoading(false);
+  };
 
   const handleFilterChange = (filters: any) => {
     setActiveFilters(filters);
@@ -139,6 +182,7 @@ const DentistListing = () => {
         </div>
       </div>
       
+      <Footer />
     </div>
   );
 };

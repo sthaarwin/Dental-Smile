@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { CommonServicesModule } from './common/services/common-services.module';
 import { ServicesModule } from './services/services.module';
 import { AppointmentsModule } from './appointments/appointments.module';
+import { DentistsModule } from './dentists/dentists.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
     UsersModule,
     ServicesModule,
     AppointmentsModule,
+    DentistsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

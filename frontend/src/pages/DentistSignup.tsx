@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import api from "@/services/api"; // Import API for dentist application
+import api from "@/services/api";
 
 const DentistSignup = () => {
   const [step, setStep] = useState(1);
@@ -43,7 +43,6 @@ const DentistSignup = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [user, setUser] = useState<any>(null);
   const [formData, setFormData] = useState({
-    // Personal Information
     firstName: "",
     middleName: "",
     lastName: "",
@@ -52,14 +51,12 @@ const DentistSignup = () => {
     confirmPassword: "",
     phone: "",
     
-    // Professional Information
     specialties: [] as string[],
     experience: "",
     education: "",
     certifications: "",
     licenseNumber: "",
     
-    // Practice Information
     practiceName: "",
     address: "",
     city: "",
@@ -69,19 +66,16 @@ const DentistSignup = () => {
     businessHours: "",
     acceptedInsurance: "",
     
-    // Additional Information
-    bio: "",
+     bio: "",
     services: [] as string[],
     languages: "",
     
-    // Application status
-    applicationStatus: "pending",
+     applicationStatus: "pending",
   });
 
   const [inputService, setInputService] = useState("");
 
-  // Check authentication and load user data
-  useEffect(() => {
+   useEffect(() => {
     const checkAuth = async () => {
       setIsLoading(true);
       const token = localStorage.getItem("token");
@@ -93,14 +87,12 @@ const DentistSignup = () => {
       }
       
       try {
-        // Get user data from localStorage
-        const userString = localStorage.getItem("user");
+         const userString = localStorage.getItem("user");
         if (userString) {
           const userData = JSON.parse(userString);
           setUser(userData);
           
-          // Pre-fill form with user data
-          setFormData(prev => ({
+           setFormData(prev => ({
             ...prev,
             firstName: userData.name?.split(' ')[0] || "",
             lastName: userData.name?.split(' ').slice(1).join(' ') || "",
@@ -123,8 +115,7 @@ const DentistSignup = () => {
     checkAuth();
   }, []);
 
-  // Available dental services for the dropdown
-  const availableServices = [
+   const availableServices = [
     "General Check-up",
     "Teeth Cleaning",
     "Teeth Whitening",
@@ -148,8 +139,7 @@ const DentistSignup = () => {
   };
 
   const handleNext = () => {
-    // Validate current step
-    if (step === 1) {
+     if (step === 1) {
       if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
         toast.error("Please fill in all required fields");
         return;
@@ -171,27 +161,96 @@ const DentistSignup = () => {
     e.preventDefault();
     
     try {
-      // Format the data for the API
-      const dentistApplicationData = {
-        ...formData,
-        userId: user?.id, // Link to existing user account
-        specialties: formData.specialties.join(', '),
-        services: formData.services,
-        languages: formData.languages.split(',').map(lang => lang.trim()),
-        acceptedInsurance: formData.acceptedInsurance.split(',').map(insurance => insurance.trim()),
+      // Validate form data
+      if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+        toast.error("Please fill in all required personal information");
+        return;
+      }
+
+      // Format the name field as required by the backend
+      const fullName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
+      
+      // Create the data object with fields the backend expects
+      const dentistData = {
+        name: fullName,
+        email: formData.email,
+        password: formData.password,
+        phone_number: formData.phone,
+        role: 'dentist',
+        
+        // Professional details
+        dentist_details: {
+          specialties: formData.specialties,
+          experience: parseInt(formData.experience) || 0,
+          education: formData.education,
+          certifications: formData.certifications,
+          license_number: formData.licenseNumber,
+          practice_name: formData.practiceName,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip_code: formData.zipCode,
+          office_phone: formData.officePhone,
+          business_hours: formData.businessHours,
+          accepted_insurance: formData.acceptedInsurance.split(',').map(item => item.trim()),
+          bio: formData.bio,
+          services: formData.services,
+          languages: formData.languages.split(',').map(item => item.trim()),
+          application_status: "pending"
+        }
       };
       
-      // Make API call to create dentist application
-      await api.post('/dentists/apply', dentistApplicationData);
+      let response;
       
-      toast.success("Application submitted successfully! Our team will review your details and be in touch shortly.");
+      // Check if we're already logged in
+      if (isAuthenticated && user) {
+        // Update existing user with dentist details
+        delete dentistData.password; // Remove password from update data
+        
+        // Format the data properly for the backend API endpoint
+        // The backend expects the ID as a direct parameter, not in the request body
+        // So we pass it directly in the URL path
+        response = await api.put(`/users/update-to-dentist?userId=${user._id || user.id}`, dentistData);
+        
+        toast.success("Dentist application submitted successfully! Our team will review your details.");
+      } else {
+        // Register as a new dentist
+        response = await api.post('/auth/register', dentistData);
+        
+        // Store token if returned by API
+        if (response.data.token) {
+          localStorage.setItem("token", response.data.token);
+        }
+        
+        // Store user data if returned
+        if (response.data.user) {
+          localStorage.setItem("user", JSON.stringify(response.data.user));
+        }
+        
+        toast.success("Registration successful! Your application will be reviewed shortly.");
+      }
       
-      // Redirect to dashboard or confirmation page
-      window.location.href = "/dashboard";
+      // Redirect after a slight delay
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 1500);
+      
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || "Failed to submit application";
-      toast.error(errorMessage);
+      // Enhanced error handling
       console.error("Application submission error:", error);
+      
+      // Handle specific status codes
+      if (error.response?.status === 409) {
+        toast.error("This email is already registered. Please log in first, then complete your dentist profile.");
+      } else {
+        // Extract more specific error message if available
+        const errorMessage = 
+          error.response?.data?.message || 
+          error.response?.data?.error || 
+          "Failed to submit application. Please check your information and try again.";
+        
+        toast.error(errorMessage);
+      }
     }
   };
 

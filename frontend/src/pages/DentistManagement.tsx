@@ -33,6 +33,7 @@ import {
   Stethoscope,
   Search,
   Filter,
+  RefreshCw,
 } from "lucide-react";
 import {
   Dialog,
@@ -119,33 +120,26 @@ const DentistManagement = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch dentist applications data
-      console.log("Attempting to fetch dentist applications...");
-      try {
-        const applicationsResponse = await api.get('/dentists/applications');
+      // Fetch dentist applications data from the API
+      const applicationsResponse = await api.get('/dentists/applications');
+      
+      if (Array.isArray(applicationsResponse.data)) {
+        setDentistApplications(applicationsResponse.data);
+        setPendingApplications(applicationsResponse.data.filter(app => app.applicationStatus === "pending").length);
         
-        console.log("Dentist applications API response:", applicationsResponse.data);
+        // Count approved dentists
+        const approvedCount = applicationsResponse.data.filter(app => app.applicationStatus === "approved").length;
+        setTotalDentists(approvedCount);
         
-        // If API works, use the data from API
-        if (Array.isArray(applicationsResponse.data)) {
-          setDentistApplications(applicationsResponse.data);
-          setPendingApplications(applicationsResponse.data.filter(app => app.applicationStatus === "pending").length);
-          
-          // Count approved dentists
-          const approvedCount = applicationsResponse.data.filter(app => app.applicationStatus === "approved").length;
-          setTotalDentists(approvedCount);
-        } else {
-          // Use mock data as fallback if API returns unexpected data format
-          useMockData();
-        }
-      } catch (applicationsError) {
-        console.error("Error fetching dentist applications:", applicationsError);
-        // Use mock data as fallback if API fails
+        toast.success("Data loaded successfully");
+      } else {
+        toast.error("Received unexpected data format from API");
         useMockData();
       }
     } catch (error) {
-      console.error("Error in fetchData:", error);
-      toast.error("Failed to load data. Please try again.");
+      console.error("Error fetching dentist applications:", error);
+      toast.error("Failed to load data from API, using demonstration data instead");
+      useMockData();
     } finally {
       setIsLoading(false);
     }
@@ -244,11 +238,25 @@ const DentistManagement = () => {
     }
   };
 
-  // Filter dentist applications based on status
+  // Filter dentist applications based on status and search term
   const filteredApplications = Array.isArray(dentistApplications) ? (
-    applicationFilter === "all" 
-      ? dentistApplications 
-      : dentistApplications.filter(app => app.applicationStatus === applicationFilter)
+    dentistApplications
+      // First filter by status
+      .filter(app => applicationFilter === "all" || app.applicationStatus === applicationFilter)
+      // Then filter by search term
+      .filter(app => {
+        if (!searchTerm) return true;
+        
+        const searchLower = searchTerm.toLowerCase();
+        return (
+          app.firstName.toLowerCase().includes(searchLower) ||
+          app.lastName.toLowerCase().includes(searchLower) ||
+          `${app.firstName} ${app.lastName}`.toLowerCase().includes(searchLower) ||
+          app.specialties.toLowerCase().includes(searchLower) ||
+          app.licenseNumber.toLowerCase().includes(searchLower) ||
+          app.practiceName.toLowerCase().includes(searchLower)
+        );
+      })
   ) : [];
 
   // If user is not logged in, redirect to login
@@ -293,16 +301,6 @@ const DentistManagement = () => {
                       <Link to="/admin">
                         <Shield className="w-5 h-5 mr-3" />
                         Admin Dashboard
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start"
-                      asChild
-                    >
-                      <Link to="/dashboard">
-                        <CalendarDays className="w-5 h-5 mr-3" />
-                        User Dashboard
                       </Link>
                     </Button>
                     <Button
@@ -394,6 +392,14 @@ const DentistManagement = () => {
                       />
                     </div>
                     <div className="flex gap-2">
+                      <Button 
+                        variant="outline"
+                        size="icon"
+                        onClick={fetchData}
+                        title="Refresh data"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
                       <Select value={applicationFilter} onValueChange={setApplicationFilter}>
                         <SelectTrigger className="w-[180px]">
                           <SelectValue placeholder="Filter by status" />

@@ -22,6 +22,9 @@ export class User {
 
   @Prop()
   profile_picture: string;
+  
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  dentist_details: Record<string, any>;
 
   toObject?(): Record<string, any>;
 }

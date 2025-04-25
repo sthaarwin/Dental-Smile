@@ -48,6 +48,7 @@ const Profile = () => {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   useEffect(() => {
@@ -76,6 +77,11 @@ const Profile = () => {
           if (userData.profile_picture) {
             setImagePreview(userData.profile_picture);
           }
+          
+          // Extract user role
+          if (userData.role) {
+            setUserRole(userData.role);
+          }
         }
         
         // Try to get the most up-to-date user data from the API
@@ -93,6 +99,11 @@ const Profile = () => {
             
             if (userData.profile_picture) {
               setImagePreview(userData.profile_picture);
+            }
+            
+            // Extract user role from API response
+            if (userData.role) {
+              setUserRole(userData.role);
             }
             
             // Update localStorage with the latest data
@@ -159,7 +170,7 @@ const Profile = () => {
             console.log("Uploading image to Cloudinary...");
             
             // Upload the image to Cloudinary via our backend
-            const uploadResponse = await authAPI.uploadProfilePicture(formData);
+            const uploadResponse = await userAPI.uploadProfilePicture(formData);
             console.log("Upload response:", uploadResponse);
             
             if (uploadResponse && uploadResponse.data && uploadResponse.data.imageUrl) {
@@ -199,7 +210,7 @@ const Profile = () => {
       console.log("Updating profile with data:", updateData);
       
       // Send the update to the backend
-      const response = await authAPI.updateProfile(updateData);
+      const response = await userAPI.updateProfile(updateData);
       console.log("Profile update response:", response);
       
       if (response && response.data) {
@@ -308,12 +319,21 @@ const Profile = () => {
                 </CardHeader>
                 <CardContent>
                   <nav className="space-y-2">
-                    <Button variant="ghost" className="w-full justify-start" asChild>
-                      <Link to="/dashboard">
-                        <CalendarDays className="w-5 h-5 mr-3" />
-                        Dashboard
-                      </Link>
-                    </Button>
+                    {userRole === 'admin' ? (
+                      <Button variant="ghost" className="w-full justify-start" asChild>
+                        <Link to="/admin">
+                          <CalendarDays className="w-5 h-5 mr-3" />
+                          Admin Dashboard
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" className="w-full justify-start" asChild>
+                        <Link to="/dashboard">
+                          <CalendarDays className="w-5 h-5 mr-3" />
+                          Dashboard
+                        </Link>
+                      </Button>
+                    )}
                     <Button variant="ghost" className="w-full justify-start" asChild>
                       <Link to="/dashboard/profile">
                         <User className="w-5 h-5 mr-3" />

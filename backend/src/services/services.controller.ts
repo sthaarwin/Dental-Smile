@@ -38,6 +38,25 @@ export class ServicesController {
     );
   }
 
+  // Public endpoint to get dentists
+  @Get('dentists/public')
+  async findPublicDentists(
+    @Query('specialty') specialty?: string,
+    @Query('city') city?: string,
+    @Query('state') state?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number
+  ) {
+    // This endpoint would need to be implemented in the service
+    // For now, we'll just return a success message
+    return {
+      success: true,
+      message: 'Public dentist endpoint is now available',
+      data: []
+    };
+  }
+
   // Protected endpoints below
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin')
