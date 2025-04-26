@@ -66,11 +66,12 @@ import { appointmentAPI } from '@/services/api';
 import api from "@/services/api";
 
 interface Appointment {
-  id: number;
+  id: number | string; // Allow for MongoDB ObjectId string format
+  _id?: string; // Add potential MongoDB _id field for compatibility with backend
   date: string;
   time: string;
   patientName: string;
-  patientId: number;
+  patientId: number | string;
   service: string;
   status: "scheduled" | "completed" | "cancelled" | "no-show";
 }
@@ -147,9 +148,27 @@ const DentistDashboard = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      // Fetch appointments
+      const dentistData = localStorage.getItem("user");
+      let currentDentist = dentist;
+      
+      if (!currentDentist && dentistData) {
+        currentDentist = JSON.parse(dentistData);
+      }
+      
+      // Fetch appointments - adding dentist ID filter
       try {
-        const appointmentsResponse = await appointmentAPI.getAppointments();
+        const dentistId = currentDentist?._id || currentDentist?.id;
+        
+        if (!dentistId) {
+          console.error("No dentist ID available for fetching appointments");
+          toast.error("Unable to fetch appointments: Missing dentist ID");
+          return;
+        }
+        
+        console.log(`Fetching appointments for dentist ID: ${dentistId}`);
+        // Use dentist-specific endpoint instead of general appointments endpoint
+        const appointmentsResponse = await appointmentAPI.getAppointmentsByDentist(dentistId);
+        console.log("Appointments response:", appointmentsResponse.data);
         setAppointments(appointmentsResponse.data);
         
         // Extract unique patients from appointments
@@ -200,10 +219,27 @@ const DentistDashboard = () => {
 
       // Fetch schedule - fixing the endpoint path to match backend controller
       try {
-        // Based on the backend code, use "api/schedules/dentist/:id" with the logged-in dentist id
-        const dentistId = dentist?.id;
-        const scheduleResponse = await api.get(`/schedules/dentist/${dentistId}`);
-        setSchedule(scheduleResponse.data);
+        if (currentDentist?._id || currentDentist?.id) {
+          // Use the MongoDB _id or fallback to id property
+          const dentistId = currentDentist._id || currentDentist.id;
+          console.log("Fetching schedule for dentist ID:", dentistId);
+          
+          try {
+            const scheduleResponse = await api.get(`/schedules/dentist/${dentistId}`);
+            setSchedule(scheduleResponse.data || {});
+          } catch (scheduleError) {
+            console.log("Schedule not found, creating an empty schedule structure");
+            // When no schedule exists yet, create empty structure for the UI to work with
+            const emptySchedule = {};
+            weekdays.forEach(day => {
+              emptySchedule[day] = [];
+            });
+            setSchedule(emptySchedule);
+          }
+        } else {
+          console.error("No dentist ID available for fetching schedule");
+          toast.error("Unable to fetch schedule: Missing dentist ID");
+        }
       } catch (error) {
         console.error("Error fetching schedule:", error);
         toast.error("Failed to load schedule data");
@@ -230,14 +266,33 @@ const DentistDashboard = () => {
   };
 
   const updateAppointmentStatus = async () => {
-    if (!selectedAppointment || !appointmentStatus) return;
+    if (!selectedAppointment) {
+      toast.error("No appointment selected");
+      return;
+    }
+    
+    if (!appointmentStatus) {
+      toast.error("Please select a status");
+      return;
+    }
+
+    // Check if we have a valid ID (either _id or id)
+    const appointmentId = selectedAppointment._id || selectedAppointment.id;
+    
+    if (!appointmentId) {
+      console.error("Cannot update appointment: Missing ID", selectedAppointment);
+      toast.error("Cannot update this appointment: Missing ID");
+      return;
+    }
 
     try {
-      await appointmentAPI.updateAppointmentStatus(selectedAppointment.id, appointmentStatus);
+      console.log("Updating appointment status for ID:", appointmentId, "to status:", appointmentStatus);
+      await appointmentAPI.updateAppointmentStatus(appointmentId, appointmentStatus);
       
       // Update local state
       setAppointments(appointments.map(apt => 
-        apt.id === selectedAppointment.id ? { ...apt, status: appointmentStatus as any } : apt
+        (apt.id === appointmentId || apt._id === appointmentId) ? 
+          { ...apt, status: appointmentStatus as any } : apt
       ));
       
       toast.success(`Appointment marked as ${appointmentStatus}`);
@@ -342,8 +397,10 @@ const DentistDashboard = () => {
 
   // Filter appointments based on search and status
   const filteredAppointments = appointments.filter(appointment => {
-    const matchesSearch = appointment.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         appointment.service.toLowerCase().includes(searchTerm.toLowerCase());
+    // Safely access properties with optional chaining
+    const patientNameMatch = appointment.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+    const serviceMatch = appointment.service?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+    const matchesSearch = searchTerm === '' || patientNameMatch || serviceMatch;
     const matchesStatus = appointmentFilter === 'all' || appointment.status === appointmentFilter;
     return matchesSearch && matchesStatus;
   });

@@ -21,7 +21,28 @@ export class SchedulesService {
       .exec();
       
     if (!schedule) {
-      throw new NotFoundException(`Schedule for dentist ${dentistId} not found`);
+      // Create default empty schedule structure for new dentists
+      const defaultSchedule = new this.workingHoursModel({
+        dentist: dentistId,
+        monday: [],
+        tuesday: [],
+        wednesday: [],
+        thursday: [],
+        friday: [],
+        saturday: [],
+        sunday: [],
+        daysOff: []
+      });
+      
+      try {
+        // Save the default schedule
+        const savedSchedule = await defaultSchedule.save();
+        console.log(`Created default schedule for dentist ${dentistId}`);
+        return savedSchedule;
+      } catch (error) {
+        console.error(`Error creating default schedule for dentist ${dentistId}:`, error);
+        throw new NotFoundException(`Schedule for dentist ${dentistId} not found and could not be created`);
+      }
     }
     
     return schedule;

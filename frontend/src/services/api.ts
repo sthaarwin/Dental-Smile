@@ -48,13 +48,13 @@ export const authAPI = {
 export const appointmentAPI = {
   getAppointments: (params?: any) => 
     api.get('/appointments', { params }),
-  getAppointmentById: (id: number) => 
+  getAppointmentById: (id: number | string) => 
     api.get(`/appointments/${id}`),
   createAppointment: (appointmentData: any) => 
     api.post('/appointments', appointmentData),
-  updateAppointment: (id: number, appointmentData: any) => 
+  updateAppointment: (id: number | string, appointmentData: any) => 
     api.put(`/appointments/${id}`, appointmentData),
-  deleteAppointment: (id: number) => 
+  deleteAppointment: (id: number | string) => 
     api.delete(`/appointments/${id}`),
   getAppointmentsByDentist: (dentistId: string) => 
     api.get(`/appointments/dentist/${dentistId}`),
@@ -63,12 +63,18 @@ export const appointmentAPI = {
   getAppointmentsByDate: (date: string) => 
     api.get('/appointments/date', { params: { date } }),
   myAppointments: () => api.get('/appointments/my-appointments'),
-  rescheduleAppointment: (id: number, data: any) => 
+  rescheduleAppointment: (id: number | string, data: any) => 
     api.put(`/appointments/${id}/reschedule/`, data),
-  cancelAppointment: (id: number) => 
+  cancelAppointment: (id: number | string) => 
     api.delete(`/appointments/${id}/`),
-  updateAppointmentStatus: (id: number, status: string) =>
-    api.put(`/appointments/${id}/status`, { status }),
+  updateAppointmentStatus: (id: number | string, status: string) => {
+    // Check if id is defined before making API call
+    if (!id) {
+      console.error("Cannot update appointment status: appointment ID is undefined");
+      return Promise.reject(new Error("Appointment ID is undefined"));
+    }
+    return api.put(`/appointments/${id}/status`, { status });
+  },
 };
 
 export const dentistAPI = {
@@ -80,7 +86,7 @@ export const dentistAPI = {
     acceptingNewPatients?: boolean;
     page?: number;
     limit?: number;
-  }) => api.get('/dentists', { params }),
+  }) => api.get('/services/dentists/public', { params }),
   
   getDentistById: (id: string) => api.get(`/users/${id}`),
   
@@ -104,7 +110,7 @@ export const dentistAPI = {
 
 export const reviewAPI = {
   getDentistReviews: (dentistId: string) => 
-    api.get(`/reviews/dentist/${dentistId}`),
+    api.get(`/reviews/dentist/${dentistId}/public`),
   submitReview: (reviewData: any) => 
     api.post('/reviews', reviewData),
   updateReview: (id: string, reviewData: any) => 

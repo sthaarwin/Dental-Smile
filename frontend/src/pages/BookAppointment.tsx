@@ -87,18 +87,55 @@ const BookAppointment = () => {
     const fetchDentists = async () => {
       setIsDentistsLoading(true);
       try {
-        const response = await api.get('/dentists');
-        setDentists(response.data);
+        const response = await api.get('/services/dentists/public');
+        let dentistsArray: Dentist[] = [];
+        
+        // Check if response has a nested data property containing dentists array
+        if (response.data && Array.isArray(response.data.data)) {
+          dentistsArray = response.data.data;
+          setDentists(dentistsArray);
+        } else if (Array.isArray(response.data)) {
+          dentistsArray = response.data;
+          setDentists(dentistsArray);
+        } else {
+          console.error("Unexpected API response format:", response.data);
+          setDentists([]);
+          toast.error("Failed to parse dentist data");
+          return;
+        }
+        
+        // Set selectedDentistId after dentists are loaded
+        if (dentistId) {
+          const dentistIdNum = Number(dentistId);
+          const foundDentist = dentistsArray.find(d => d.id === dentistIdNum);
+          
+          if (foundDentist) {
+            setSelectedDentistId(foundDentist.id);
+            console.log("Dentist found and ID set:", foundDentist.id);
+          } else {
+            // If dentist not found with numeric ID, try string comparison
+            const foundByString = dentistsArray.find(d => d.id.toString() === dentistId);
+            if (foundByString) {
+              setSelectedDentistId(foundByString.id);
+              console.log("Dentist found by string ID:", foundByString.id);
+            } else {
+              console.error("Dentist not found with ID:", dentistId);
+              // If a specific dentist was requested but not found, show error
+              toast.error("Selected dentist not found");
+            }
+          }
+        }
       } catch (error) {
         console.error("Error fetching dentists:", error);
         toast.error("Failed to load dentists");
+        setDentists([]);
       } finally {
         setIsDentistsLoading(false);
       }
     };
 
     fetchDentists();
-  }, []);
+  }, [dentistId]);
 
   // Check authentication and load user data
   useEffect(() => {
@@ -153,18 +190,22 @@ const BookAppointment = () => {
     try {
       // Format the data for the API
       const appointmentData = {
-        patient: user.id,  // The logged-in user's ID
-        dentist: selectedDentistId.toString(),
+        patient: user._id || user.id, // Changed from patient_id to patient
+        dentist: selectedDentistId.toString(), // Changed from dentist_id to dentist
         date: selectedDate.toISOString().split('T')[0],
-        startTime: selectedTime,
-        // Calculate end time based on service duration
+        startTime: selectedTime, // Changed from start_time to startTime
         endTime: calculateEndTime(selectedTime, 
-          appointmentTypes.find(t => t.id === appointmentType)?.duration || "30 min"),
-        service: appointmentTypes.find(t => t.id === appointmentType)?.label || "",
+          appointmentTypes.find(t => t.id === appointmentType)?.duration || "30 min"), // Changed from end_time to endTime
+        service: appointmentTypes.find(t => t.id === appointmentType)?.label || "", // Changed from service_type to service
         notes: formData.notes
+        // Removed additional fields not expected by the backend:
+        // - status
+        // - patient_name
+        // - patient_email
+        // - patient_phone
       };
       
-      // Make API call to create appointment
+      console.log("Sending appointment data:", appointmentData);
       await api.post('/appointments', appointmentData);
       
       toast.success("Appointment booked successfully!");
@@ -176,16 +217,14 @@ const BookAppointment = () => {
     }
   };
   
-  // Helper function to calculate end time based on duration
-  const calculateEndTime = (startTime: string, duration: string): string => {
+   const calculateEndTime = (startTime: string, duration: string): string => {
     const [hours, minutesPart] = startTime.split(':');
     const [minutes, period] = minutesPart.split(' ');
     
     const startHour = parseInt(hours);
     const startMinute = parseInt(minutes);
     
-    // Extract duration in minutes
-    const durationMinutes = parseInt(duration.split(' ')[0]);
+     const durationMinutes = parseInt(duration.split(' ')[0]);
     
     let totalMinutes = startHour * 60 + startMinute + durationMinutes;
     if (period.toUpperCase() === 'PM' && startHour !== 12) {
@@ -195,12 +234,10 @@ const BookAppointment = () => {
       totalMinutes -= 12 * 60;
     }
     
-    // Calculate end time
-    let endHour = Math.floor(totalMinutes / 60) % 24;
+     let endHour = Math.floor(totalMinutes / 60) % 24;
     const endMinute = totalMinutes % 60;
     
-    // Format end time
-    let endPeriod = 'AM';
+     let endPeriod = 'AM';
     if (endHour >= 12) {
       endPeriod = 'PM';
       if (endHour > 12) {
@@ -215,8 +252,7 @@ const BookAppointment = () => {
   };
 
   const handleNext = () => {
-    // Add validation for each step
-    if (currentStep === 1 && !selectedDate) {
+     if (currentStep === 1 && !selectedDate) {
       toast.error("Please select a date");
       return;
     }

@@ -63,6 +63,18 @@ export class AppointmentsController {
     return this.appointmentsService.findByPatient(userId);
   }
 
+  @Get('dentist/:dentistId')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'dentist')
+  async getAppointmentsByDentist(@Param('dentistId') dentistId: string, @Request() req) {
+    // Optional: Check permission if it's not the dentist's own appointments
+    if (req.user.role !== 'admin' && req.user.userId !== dentistId) {
+      throw new BadRequestException('You can only view your own appointments');
+    }
+    
+    return this.appointmentsService.findByDentist(dentistId);
+  }
+
   @Get('dentist-schedule')
   @UseGuards(RolesGuard)
   @Roles('admin', 'dentist')
