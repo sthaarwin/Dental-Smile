@@ -103,8 +103,7 @@ const DentistManagement = () => {
     if (userData) {
       const user = JSON.parse(userData);
       setCurrentUser(user);
-      
-      // If not admin, redirect to dashboard
+ 
       if (user.role !== "admin") {
         toast.error("You don't have permission to access this page");
         navigate("/dashboard");
@@ -112,22 +111,19 @@ const DentistManagement = () => {
     } else {
       navigate("/login");
     }
-
-    // Fetch dentist applications
+ 
     fetchData();
   }, [navigate]);
 
   const fetchData = async () => {
     setIsLoading(true);
-    try {
-      // Fetch dentist applications data from the API
+    try { 
       const applicationsResponse = await api.get('/dentists/applications');
       
       if (Array.isArray(applicationsResponse.data)) {
         setDentistApplications(applicationsResponse.data);
         setPendingApplications(applicationsResponse.data.filter(app => app.applicationStatus === "pending").length);
-        
-        // Count approved dentists
+         
         const approvedCount = applicationsResponse.data.filter(app => app.applicationStatus === "approved").length;
         setTotalDentists(approvedCount);
         
@@ -145,8 +141,7 @@ const DentistManagement = () => {
     }
   };
   
-  const useMockData = () => {
-    // Mock data for demonstration
+  const useMockData = () => { 
     const mockApplications: DentistApplication[] = [
       {
         id: "app1",
@@ -215,16 +210,13 @@ const DentistManagement = () => {
   };
 
   const handleApplicationAction = async (applicationId: string, status: 'approved' | 'rejected') => {
-    try {
-      // API call to update application status
+    try { 
       await api.patch(`/dentists/applications/${applicationId}/status`, { status });
-      
-      // Update local state
+       
       setDentistApplications(dentistApplications.map(app => 
         app.id === applicationId ? { ...app, applicationStatus: status } : app
       ));
-      
-      // Update counts
+       
       if (status === 'approved') {
         setTotalDentists(prev => prev + 1);
       }
@@ -237,13 +229,11 @@ const DentistManagement = () => {
       toast.error(`Failed to ${status} application`);
     }
   };
-
-  // Filter dentist applications based on status and search term
+ 
   const filteredApplications = Array.isArray(dentistApplications) ? (
-    dentistApplications
-      // First filter by status
+    dentistApplications 
       .filter(app => applicationFilter === "all" || app.applicationStatus === applicationFilter)
-      // Then filter by search term
+  
       .filter(app => {
         if (!searchTerm) return true;
         
@@ -258,8 +248,7 @@ const DentistManagement = () => {
         );
       })
   ) : [];
-
-  // If user is not logged in, redirect to login
+ 
   if (!localStorage.getItem("token")) {
     return <Navigate to="/login" replace />;
   }

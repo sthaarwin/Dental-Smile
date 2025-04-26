@@ -80,24 +80,26 @@ export const dentistAPI = {
     acceptingNewPatients?: boolean;
     page?: number;
     limit?: number;
-  }) => api.get('/services/dentists/public', { params }), // Updated to use public endpoint
+  }) => api.get('/dentists', { params }),
   
   getDentistById: (id: string) => api.get(`/users/${id}`),
   
-  getDentistAvailability: (id: string, date: string) => 
-    api.get(`/schedules/dentist/${id}/availability`, { params: { date } }),
+  getDentistProfile: (id: string) => api.get(`/dentists/${id}/profile`),
   
-  searchDentists: (query: string) => 
-    api.get(`/services/dentists/public`, { params: { search: query } }),
-    
-  getDentistsBySpecialty: (specialty: string) => 
-    api.get(`/services/dentists/public`, { params: { specialty } }),
-
-  getDentistsByLocation: (city: string, state?: string) => 
-    api.get(`/services/dentists/public`, { params: { city, state } }),
-    
-  getRecommendedDentists: () => 
-    api.get('/services/dentists/public', { params: { sortBy: 'rating' } }),
+  getDentistReviews: (id: string) => api.get(`/reviews/dentist/${id}`),
+  
+  getDentistSchedule: (id: string) => api.get(`/schedules/dentist/${id}`),
+  
+  checkDentistApplicationStatus: (id: string) => api.get(`/dentists/applications/${id}/status`),
+  
+   getDentistData: async (id: string) => {
+    try {
+       const response = await api.get(`/users/${id}`);
+      return response;
+    } catch (error) {
+       return api.get(`/dentists/${id}`);
+    }
+  }
 };
 
 export const reviewAPI = {

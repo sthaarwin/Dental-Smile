@@ -69,14 +69,12 @@ const Dashboard = () => {
   const [newTime, setNewTime] = useState<string>();
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Load user data
+  useEffect(() => { 
     const userData = localStorage.getItem("user");
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
-      
-      // Redirect dentists and admins to their respective dashboards
+       
       if (parsedUser.role === 'dentist') {
         navigate("/dentist-dashboard");
         return;
@@ -91,8 +89,7 @@ const Dashboard = () => {
     }
 
     const fetchData = async () => {
-      try {
-        // Use myAppointments() instead of getAppointments() for patients
+      try { 
         const appointmentsResponse = await appointmentAPI.myAppointments();
         setAppointments(appointmentsResponse.data);
       } catch (error) {
@@ -128,8 +125,7 @@ const Dashboard = () => {
         date: newDate.toISOString().split('T')[0],
         time: newTime
       });
-
-      // Use myAppointments instead of getAppointments
+ 
       const updatedAppointments = await appointmentAPI.myAppointments();
       setAppointments(updatedAppointments.data);
       
@@ -153,8 +149,7 @@ const Dashboard = () => {
 
     try {
       await appointmentAPI.cancelAppointment(selectedAppointment.id);
-      
-      // Use myAppointments instead of getAppointments
+       
       const updatedAppointments = await appointmentAPI.myAppointments();
       setAppointments(updatedAppointments.data);
       

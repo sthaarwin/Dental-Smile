@@ -25,9 +25,20 @@ const DentistList = () => {
       setIsLoading(true);
       try {
         const response = await dentistAPI.getAllDentists();
-        if (response.data) {
+        // Check if response has data and the data property contains the dentist array
+        if (response.data && Array.isArray(response.data.data)) {
+          // Use the actual dentist array from the nested data property
+          setDentists(response.data.data);
+          setFilteredDentists(response.data.data);
+        } else if (response.data && Array.isArray(response.data)) {
+          // Fallback in case the API returns dentists directly without nesting
           setDentists(response.data);
           setFilteredDentists(response.data);
+        } else {
+          // If no valid data is received, use mock data
+          toast.error("Received unexpected data format, using demo data");
+          setDentists(mockDentists);
+          setFilteredDentists(mockDentists);
         }
       } catch (error) {
         console.error("Error fetching dentists:", error);

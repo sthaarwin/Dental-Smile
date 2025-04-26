@@ -14,9 +14,13 @@ const DentistCard = ({ dentist }: DentistCardProps) => {
 
   // Create URL-friendly name
   const dentistUrlName = `${dentist.firstName}-${dentist.lastName}`.toLowerCase();
+  
+  // Use both ID and name for better URL structure
+  const profileUrl = `/dentist/${dentist.id}/${dentistUrlName}`;
+  const bookingUrl = `/book/${dentist.id}`;
 
   const handleCardClick = () => {
-    navigate(`/dentist/${dentistUrlName}`);
+    navigate(profileUrl);
   };
 
   return (
@@ -80,13 +84,13 @@ const DentistCard = ({ dentist }: DentistCardProps) => {
           )}
           
           <div className="mt-auto" onClick={(e) => e.stopPropagation()}>
-            <Link to={`/dentist/${dentistUrlName}`}>
+            <Link to={profileUrl}>
               <Button variant="outline" className="w-full mb-2">
                 View Profile
               </Button>
             </Link>
             <Button className="w-full" asChild>
-              <Link to={`/book/${dentistUrlName}`}>
+              <Link to={bookingUrl}>
                 Book Appointment
               </Link>
             </Button>

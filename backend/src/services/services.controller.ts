@@ -45,16 +45,21 @@ export class ServicesController {
     @Query('city') city?: string,
     @Query('state') state?: string,
     @Query('search') search?: string,
+    @Query('acceptingNewPatients') acceptingNewPatients?: boolean,
+    @Query('sortBy') sortBy?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number
   ) {
-    // This endpoint would need to be implemented in the service
-    // For now, we'll just return a success message
-    return {
-      success: true,
-      message: 'Public dentist endpoint is now available',
-      data: []
-    };
+    return this.servicesService.findPublicDentists(
+      specialty,
+      city,
+      state,
+      search,
+      acceptingNewPatients === true,
+      sortBy,
+      page ? +page : 1,
+      limit ? +limit : 20
+    );
   }
 
   // Protected endpoints below

@@ -65,7 +65,10 @@ const AnimatedRoutes = () => {
           <Routes location={location}>
             <Route path="/" element={<Index />} />
             <Route path="/dentists" element={<DentistList />} />
+            {/* Support both URL patterns for backward compatibility */}
+            <Route path="/dentist/:id/:name" element={<DentistProfile />} />
             <Route path="/dentist/:name" element={<DentistProfile />} />
+            <Route path="/dentist/:id" element={<DentistProfile />} />
             <Route path="/book" element={<BookAppointment />} />
             <Route path="/book/:dentistId" element={<BookAppointment />} />
             <Route path="/about" element={<About />} />

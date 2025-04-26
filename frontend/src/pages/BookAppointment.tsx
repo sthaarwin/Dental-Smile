@@ -121,7 +121,7 @@ const BookAppointment = () => {
           
           // Pre-fill form with user data
           setFormData(prev => ({
-            ...prev,
+            ...prev,  
             firstName: userData.name?.split(' ')[0] || "",
             lastName: userData.name?.split(' ').slice(1).join(' ') || "",
             email: userData.email || "",
