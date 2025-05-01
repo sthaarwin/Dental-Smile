@@ -1,27 +1,38 @@
 import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
+import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
-import { AppointmentsModule } from './appointments/appointments.module';
+import { UsersModule } from './users/users.module';
+import { CommonServicesModule } from './common/services/common-services.module';
 import { ServicesModule } from './services/services.module';
+import { AppointmentsModule } from './appointments/appointments.module';
+import { DentistsModule } from './dentists/dentists.module';
 import { SchedulesModule } from './schedules/schedules.module';
-import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true,
+      isGlobal: true, 
+      envFilePath: '.env',
+      validationOptions: {
+        allowUnknown: true,
+        abortEarly: false,
+      },
     }),
-    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/dental_appointment'),
-    UsersModule,
+    MongooseModule.forRootAsync({
+      useFactory: () => ({
+        uri: process.env.MONGO_URI || process.env.MONGODB_URI,
+      }),
+    }),
+    CommonServicesModule,
     AuthModule,
-    AppointmentsModule,
+    UsersModule,
     ServicesModule,
+    AppointmentsModule,
+    DentistsModule,
     SchedulesModule,
-    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

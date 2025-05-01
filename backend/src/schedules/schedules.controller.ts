@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Param,
   Body,
   Query,
@@ -117,5 +118,38 @@ export class SchedulesController {
     } catch (error) {
       throw new BadRequestException('Invalid parameters or format');
     }
+  }
+  
+  @Post('dentist/:id')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'dentist')
+  async addTimeSlot(
+    @Param('id') id: string,
+    @Body() timeSlotData: any,
+    @Request() req
+  ) {
+    // Allow dentists to add slots only to their own schedule
+    if (req.user.role === 'dentist' && req.user.userId !== id) {
+      throw new BadRequestException('You can only modify your own schedule');
+    }
+    
+    return this.schedulesService.addTimeSlot(id, timeSlotData);
+  }
+
+  @Delete('dentist/:id/:slotId')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'dentist')
+  async deleteTimeSlot(
+    @Param('id') id: string,
+    @Param('slotId') slotId: string,
+    @Request() req,
+    @Body() data?: { day?: string }
+  ) {
+    // Allow dentists to delete slots only from their own schedule
+    if (req.user.role === 'dentist' && req.user.userId !== id) {
+      throw new BadRequestException('You can only modify your own schedule');
+    }
+    
+    return this.schedulesService.deleteTimeSlot(id, slotId, data?.day);
   }
 }

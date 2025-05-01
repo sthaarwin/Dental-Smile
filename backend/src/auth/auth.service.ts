@@ -20,8 +20,6 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (isPasswordValid) {
-      // Handle as Document type that has toObject method
-      // Need to cast as any to avoid TypeScript errors
       const result = { ...(user as any).toObject() };
       delete result.password;
       return result;
@@ -31,19 +29,34 @@ export class AuthService {
   }
 
   async login(user: any) {
-    // Use string interpolation for _id to handle either string or ObjectId
-    const payload = { email: user.email, sub: `${user._id}` };
+    // Create JWT payload with userId in the "sub" field
+    const payload = { 
+      email: user.email, 
+      sub: user._id.toString(),
+      role: user.role
+    };
+    
+    // Create response object with user details
+    const userResponse = {
+      _id: user._id.toString(),
+      id: user._id.toString(), // Adding "id" field for frontend consistency
+      name: user.name,
+      email: user.email,
+      phone_number: user.phone_number,
+      profile_picture: user.profile_picture,
+      role: user.role
+    };
+
+    // If user is a dentist, include dentist-specific fields if available
+    if (user.role === 'dentist' && user.dentist_details) {
+      userResponse['dentistId'] = user._id.toString(); // Explicitly include dentistId
+      userResponse['specialties'] = user.dentist_details.specialties;
+      userResponse['office_phone'] = user.dentist_details.office_phone;
+    }
     
     return {
       token: this.jwtService.sign(payload),
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone_number: user.phone_number,
-        profile_picture: user.profile_picture,
-        role: user.role,
-      }
+      user: userResponse
     };
   }
 
@@ -51,10 +64,8 @@ export class AuthService {
     try {
       const user = await this.usersService.create(userData);
       
-      // Use string interpolation for _id
       const payload = { email: user.email, sub: `${(user as any)._id}` };
       
-      // Handle as Document type that has toObject method
       const userObj = (user as any).toObject ? (user as any).toObject() : user;
       const { password, ...userWithoutPassword } = userObj;
       

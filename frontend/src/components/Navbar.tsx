@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, User, LogIn, UserCircle } from "lucide-react";
+import { Menu, X, User, LogIn, UserCircle, Settings, Grid, Shield, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { getDashboardUrlByRole } from "@/lib/utils";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -21,6 +23,9 @@ const Navbar = () => {
     localStorage.removeItem('user');
     navigate('/login');
   };
+  
+  // Get the appropriate dashboard URL based on user role
+  const dashboardUrl = getDashboardUrlByRole(user?.role);
 
   return (
     <nav className="bg-white py-4 px-6 shadow-sm fixed w-full top-0 z-50">
@@ -55,15 +60,46 @@ const Navbar = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center gap-2">
-                    <UserCircle className="h-5 w-5" />
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.profile_picture} alt={user?.name} />
+                      <AvatarFallback>{user?.name?.charAt(0) || 'P'}</AvatarFallback>
+                    </Avatar>
                     {user?.name || 'Profile'}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem asChild>
-                    <Link to="/dashboard" className="flex items-center">
-                      <User className="h-4 w-4 mr-2" />
+                    <Link to={dashboardUrl} className="flex items-center">
+                      {user?.role === 'dentist' ? (
+                        <Stethoscope className="h-4 w-4 mr-2" />
+                      ) : user?.role === 'admin' ? (
+                        <Shield className="h-4 w-4 mr-2" />
+                      ) : (
+                        <User className="h-4 w-4 mr-2" />
+                      )}
                       Dashboard
+                    </Link>
+                  </DropdownMenuItem>
+                  {user?.role === 'admin' && (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin" className="flex items-center">
+                          <Shield className="h-4 w-4 mr-2" />
+                          Admin Page
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/dashboard/dentists/" className="flex items-center">
+                          <Stethoscope className="w-5 h-5 mr-3" />
+                          Manage Dentists
+                        </Link>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link to="/dashboard/settings" className="flex items-center">
+                      <Settings className="h-4 w-4 mr-2" />
+                      Settings
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -116,6 +152,13 @@ const Navbar = () => {
               Home
             </Link>
             <Link
+              to="/services"
+              className="block py-2 px-4 text-gray-700 hover:bg-gray-50 rounded"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Services
+            </Link>
+            <Link
               to="/dentists"
               className="block py-2 px-4 text-gray-700 hover:bg-gray-50 rounded"
               onClick={() => setIsMenuOpen(false)}
@@ -140,14 +183,42 @@ const Navbar = () => {
               {token ? (
                 <>
                   <Button variant="ghost" className="w-full justify-start" asChild>
-                    <Link to="/dashboard">
-                      <User className="h-4 w-4 mr-2" />
+                    <Link to={dashboardUrl} className="flex items-center" onClick={() => setIsMenuOpen(false)}>
+                      {user?.role === 'dentist' ? (
+                        <Stethoscope className="h-4 w-4 mr-2" />
+                      ) : user?.role === 'admin' ? (
+                        <Shield className="h-4 w-4 mr-2" />
+                      ) : (
+                        <Avatar className="h-6 w-6 mr-2">
+                          <AvatarImage src={user?.profile_picture} alt={user?.name} />
+                          <AvatarFallback>{user?.name?.charAt(0) || 'P'}</AvatarFallback>
+                        </Avatar>
+                      )}
                       Dashboard
                     </Link>
                   </Button>
+                  {user?.role === 'admin' && (
+                    <>
+                      <Button variant="ghost" className="w-full justify-start" asChild>
+                        <Link to="/admin" onClick={() => setIsMenuOpen(false)}>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Admin Page
+                        </Link>
+                      </Button>
+                      <Button variant="ghost" className="w-full justify-start" asChild>
+                        <Link to="/dashboard/dentists" onClick={() => setIsMenuOpen(false)}>
+                        <Stethoscope className="w-5 h-5 mr-3" />
+                          Manage Dentists
+                        </Link>
+                      </Button>
+                    </>
+                  )}
                   <Button 
                     variant="ghost" 
-                    onClick={handleLogout}
+                    onClick={() => {
+                      handleLogout();
+                      setIsMenuOpen(false);
+                    }}
                     className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
                     <LogIn className="h-4 w-4 mr-2" />
@@ -157,13 +228,13 @@ const Navbar = () => {
               ) : (
                 <>
                   <Button variant="outline" className="w-full" asChild>
-                    <Link to="/login">
+                    <Link to="/login" onClick={() => setIsMenuOpen(false)}>
                       <LogIn className="h-4 w-4 mr-2" />
                       Log In
                     </Link>
                   </Button>
                   <Button className="w-full" asChild>
-                    <Link to="/signup">
+                    <Link to="/signup" onClick={() => setIsMenuOpen(false)}>
                       <User className="h-4 w-4 mr-2" />
                       Sign Up
                     </Link>

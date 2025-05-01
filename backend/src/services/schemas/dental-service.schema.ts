@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { ServiceCategory } from '../dto/create-service.dto';
 
 export type DentalServiceDocument = DentalService & Document;
 
@@ -22,6 +23,9 @@ export class DentalService {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ default: ServiceCategory.GENERAL })
+  category: string;
 }
 
 export const DentalServiceSchema = SchemaFactory.createForClass(DentalService);

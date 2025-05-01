@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate, Navigate } from "react-router-dom";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { mockDentists } from "@/data/mockDentists";
 import { toast } from "sonner";
 import {
   Calendar as CalendarIcon,
@@ -29,9 +28,13 @@ import {
   Stethoscope,
   UserCircle,
   Plus,
+  Loader2,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import api from "@/services/api"; 
+
+import { Dentist } from "@/types/dentist";
 
 const timeSlots = [
   "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM",
@@ -49,8 +52,13 @@ const appointmentTypes = [
 const BookAppointment = () => {
   const { dentistId } = useParams();
   const navigate = useNavigate();
-  const selectedDentist = dentistId ? mockDentists.find(d => d.id === Number(dentistId)) : undefined;
-
+  const [dentists, setDentists] = useState<Dentist[]>([]);
+  const [isDentistsLoading, setIsDentistsLoading] = useState<boolean>(true);
+  const selectedDentist = dentistId ? dentists.find(d => d.id === Number(dentistId)) : undefined;
+  
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState<string>();
@@ -73,15 +81,178 @@ const BookAppointment = () => {
   const [selectedDentistId, setSelectedDentistId] = useState<number | undefined>(
     selectedDentist?.id
   );
+  
+  // Fetch dentists from the backend
+  useEffect(() => {
+    const fetchDentists = async () => {
+      setIsDentistsLoading(true);
+      try {
+        const response = await api.get('/services/dentists/public');
+        let dentistsArray: Dentist[] = [];
+        
+        // Check if response has a nested data property containing dentists array
+        if (response.data && Array.isArray(response.data.data)) {
+          dentistsArray = response.data.data;
+          setDentists(dentistsArray);
+        } else if (Array.isArray(response.data)) {
+          dentistsArray = response.data;
+          setDentists(dentistsArray);
+        } else {
+          console.error("Unexpected API response format:", response.data);
+          setDentists([]);
+          toast.error("Failed to parse dentist data");
+          return;
+        }
+        
+        // Set selectedDentistId after dentists are loaded
+        if (dentistId) {
+          const dentistIdNum = Number(dentistId);
+          const foundDentist = dentistsArray.find(d => d.id === dentistIdNum);
+          
+          if (foundDentist) {
+            setSelectedDentistId(foundDentist.id);
+            console.log("Dentist found and ID set:", foundDentist.id);
+          } else {
+            // If dentist not found with numeric ID, try string comparison
+            const foundByString = dentistsArray.find(d => d.id.toString() === dentistId);
+            if (foundByString) {
+              setSelectedDentistId(foundByString.id);
+              console.log("Dentist found by string ID:", foundByString.id);
+            } else {
+              console.error("Dentist not found with ID:", dentistId);
+              // If a specific dentist was requested but not found, show error
+              toast.error("Selected dentist not found");
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching dentists:", error);
+        toast.error("Failed to load dentists");
+        setDentists([]);
+      } finally {
+        setIsDentistsLoading(false);
+      }
+    };
 
-  const handleSubmit = () => {
-    toast.success("Appointment booked successfully!");
-    navigate("/");
+    fetchDentists();
+  }, [dentistId]);
+
+  // Check authentication and load user data
+  useEffect(() => {
+    const checkAuth = async () => {
+      setIsLoading(true);
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        // Get user data from localStorage
+        const userString = localStorage.getItem("user");
+        if (userString) {
+          const userData = JSON.parse(userString);
+          setUser(userData);
+          
+          // Pre-fill form with user data
+          setFormData(prev => ({
+            ...prev,  
+            firstName: userData.name?.split(' ')[0] || "",
+            lastName: userData.name?.split(' ').slice(1).join(' ') || "",
+            email: userData.email || "",
+            phone: userData.phone_number || "",
+            isNewPatient: "existing"  // Set as existing patient
+          }));
+        }
+        
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error("Error loading user data:", error);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!selectedDate || !selectedTime || !appointmentType || !selectedDentistId) {
+      toast.error("Please complete all required fields");
+      return;
+    }
+    
+    try {
+      // Format the data for the API
+      const appointmentData = {
+        patient: user._id || user.id, // Changed from patient_id to patient
+        dentist: selectedDentistId.toString(), // Changed from dentist_id to dentist
+        date: selectedDate.toISOString().split('T')[0],
+        startTime: selectedTime, // Changed from start_time to startTime
+        endTime: calculateEndTime(selectedTime, 
+          appointmentTypes.find(t => t.id === appointmentType)?.duration || "30 min"), // Changed from end_time to endTime
+        service: appointmentTypes.find(t => t.id === appointmentType)?.label || "", // Changed from service_type to service
+        notes: formData.notes
+        // Removed additional fields not expected by the backend:
+        // - status
+        // - patient_name
+        // - patient_email
+        // - patient_phone
+      };
+      
+      console.log("Sending appointment data:", appointmentData);
+      await api.post('/appointments', appointmentData);
+      
+      toast.success("Appointment booked successfully!");
+      navigate("/dashboard");
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || "Failed to book appointment";
+      toast.error(errorMessage);
+      console.error("Appointment booking error:", error);
+    }
+  };
+  
+   const calculateEndTime = (startTime: string, duration: string): string => {
+    const [hours, minutesPart] = startTime.split(':');
+    const [minutes, period] = minutesPart.split(' ');
+    
+    const startHour = parseInt(hours);
+    const startMinute = parseInt(minutes);
+    
+     const durationMinutes = parseInt(duration.split(' ')[0]);
+    
+    let totalMinutes = startHour * 60 + startMinute + durationMinutes;
+    if (period.toUpperCase() === 'PM' && startHour !== 12) {
+      totalMinutes += 12 * 60;
+    }
+    if (period.toUpperCase() === 'AM' && startHour === 12) {
+      totalMinutes -= 12 * 60;
+    }
+    
+     let endHour = Math.floor(totalMinutes / 60) % 24;
+    const endMinute = totalMinutes % 60;
+    
+     let endPeriod = 'AM';
+    if (endHour >= 12) {
+      endPeriod = 'PM';
+      if (endHour > 12) {
+        endHour -= 12;
+      }
+    }
+    if (endHour === 0) {
+      endHour = 12;
+    }
+    
+    return `${endHour}:${endMinute.toString().padStart(2, '0')} ${endPeriod}`;
   };
 
   const handleNext = () => {
-    // Add validation for each step
-    if (currentStep === 1 && !selectedDate) {
+     if (currentStep === 1 && !selectedDate) {
       toast.error("Please select a date");
       return;
     }
@@ -141,6 +312,14 @@ const BookAppointment = () => {
   const renderDentistSelection = () => {
     if (dentistId || selectedDentistId) return null;
 
+    if (isDentistsLoading) {
+      return (
+        <div className="p-6 flex justify-center items-center">
+          <Loader2 className="w-6 h-6 text-dentist-600 animate-spin" />
+        </div>
+      );
+    }
+
     return (
       <div className="p-6">
         <h2 className="text-2xl font-semibold mb-6 flex items-center">
@@ -148,7 +327,7 @@ const BookAppointment = () => {
           Select a Dentist
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {mockDentists.map((dentist) => (
+          {dentists.map((dentist) => (
             <div
               key={dentist.id}
               onClick={() => setSelectedDentistId(dentist.id)}
@@ -176,6 +355,25 @@ const BookAppointment = () => {
       </div>
     );
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-16 h-16 border-4 border-dentist-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-dentist-600 font-medium">Loading...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -554,7 +752,7 @@ const BookAppointment = () => {
                       {selectedDentistId && (
                         <div className="flex items-center">
                           <User className="w-4 h-4 mr-2 text-dentist-500" />
-                          <span>Dr. {mockDentists.find(d => d.id === selectedDentistId)?.firstName} {mockDentists.find(d => d.id === selectedDentistId)?.lastName}</span>
+                          <span>Dr. {dentists.find(d => d.id === selectedDentistId)?.firstName} {dentists.find(d => d.id === selectedDentistId)?.lastName}</span>
                         </div>
                       )}
                     </div>
@@ -585,7 +783,6 @@ const BookAppointment = () => {
         </div>
       </main>
 
-  
     </div>
   );
 };

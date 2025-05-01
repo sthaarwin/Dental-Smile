@@ -13,11 +13,28 @@ export class UsersService {
   async findAll(): Promise<User[]> {
     return this.userModel.find().exec();
   }
+  
+  async findAllByRole(role: string): Promise<User[]> {
+    return this.userModel.find({ role }).exec();
+  }
 
   async findOne(id: string): Promise<User> {
+    // Don't try to use ObjectId for special values like 'me'
+    if (id === 'me') {
+      throw new Error('Cannot directly query for "me", use findCurrentUser method instead');
+    }
+    
     const user = await this.userModel.findById(id).exec();
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
+    }
+    return user;
+  }
+  
+  async findCurrentUser(userId: string): Promise<User> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) {
+      throw new NotFoundException(`User not found`);
     }
     return user;
   }
@@ -78,5 +95,38 @@ export class UsersService {
     }
     
     return deletedUser;
+  }
+  
+  async updateToDentist(id: string, data: any): Promise<User> {
+    try {
+      // Find the user
+      const user = await this.findOne(id);
+      
+      if (!user) {
+        throw new NotFoundException(`User with ID ${id} not found`);
+      }
+      
+      // Update user using findOneAndUpdate instead of save()
+      const updatedUser = await this.userModel.findOneAndUpdate(
+        { _id: id },
+        {
+          $set: {
+            name: data.name || user.name,
+            phone_number: data.phone_number || user.phone_number,
+            role: 'pending_dentist', // Change from 'dentist' to 'pending_dentist'
+            dentist_details: data.dentist_details
+          }
+        },
+        { new: true }
+      ).exec();
+      
+      if (!updatedUser) {
+        throw new NotFoundException(`Failed to update user with ID ${id}`);
+      }
+      
+      return updatedUser;
+    } catch (error) {
+      throw error;
+    }
   }
 }

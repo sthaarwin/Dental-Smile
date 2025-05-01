@@ -60,10 +60,33 @@ const Login = () => {
       toast.success('Logged in successfully!');
       navigate('/dashboard');
     } catch (error: any) {
-      const message = error.response?.data?.error || 'Login failed';
-      toast.error(message);
       console.error('Login error:', error);
-      setFormData(prev => ({ ...prev, password: '' })); // Clear password on error
+      
+      // Clear password on error
+      setFormData(prev => ({ ...prev, password: '' }));
+      
+      // Better error message extraction
+      let errorMessage = 'Invalid credentials';
+      
+      if (error.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        errorMessage = error.response.data?.message || error.response.data?.error || 'Login failed';
+        
+        if (error.response.status === 401) {
+          errorMessage = 'Invalid email or password';
+        } else if (error.response.status === 404) {
+          errorMessage = 'User not found';
+        } else if (error.response.status >= 500) {
+          errorMessage = 'Server error. Please try again later.';
+        }
+      } else if (error.request) {
+        // The request was made but no response was received
+        errorMessage = 'No response from server. Please check your internet connection.';
+      }
+      
+      // Show error toast with the appropriate message
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

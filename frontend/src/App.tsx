@@ -26,21 +26,32 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import Footer from "./components/Footer";
+import Admin from "./pages/Admin";
+import DentistDashboard from "./pages/DentistDashboard";
+import RoleDashboardRedirect from "./components/RoleDashboardRedirect";
+import DentistManagement from "./pages/DentistManagement";
+import ServicesPage from "./pages/ServicesPage";
 
-const queryClient = new QueryClient();
+// Initialize queryClient with secure configuration
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});
 
 const ScrollToTop = () => {
   useScrollTop();
   return null;
 };
 
-// Page transition wrapper component
 const AnimatedRoutes = () => {
   const location = useLocation();
   
   return (
     <>
-      {/* Navbar stays outside the animated content */}
       <Navbar />
       
       <AnimatePresence mode="wait">
@@ -55,7 +66,10 @@ const AnimatedRoutes = () => {
           <Routes location={location}>
             <Route path="/" element={<Index />} />
             <Route path="/dentists" element={<DentistList />} />
+            {/* Support both URL patterns for backward compatibility */}
+            <Route path="/dentist/:id/:name" element={<DentistProfile />} />
             <Route path="/dentist/:name" element={<DentistProfile />} />
+            <Route path="/dentist/:id" element={<DentistProfile />} />
             <Route path="/book" element={<BookAppointment />} />
             <Route path="/book/:dentistId" element={<BookAppointment />} />
             <Route path="/about" element={<About />} />
@@ -69,12 +83,21 @@ const AnimatedRoutes = () => {
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/faq" element={<FAQ />} />
             
-            {/* Protected dashboard routes */}
+            {/* Role-based dashboard routing */}
+            <Route path="/my-dashboard" element={<PrivateRoute><RoleDashboardRedirect /></PrivateRoute>} />
+            
+            {/* Role-specific dashboards */}
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/dashboard/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
             <Route path="/dashboard/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+            <Route path="/dashboard/dentists" element={<PrivateRoute><DentistManagement /></PrivateRoute>} />
+            <Route path="/dashboard/services" element={<PrivateRoute><ServicesPage /></PrivateRoute>} />
             
-            {/* 404 route */}
+            <Route path="/dentist-dashboard" element={<PrivateRoute><DentistDashboard /></PrivateRoute>} />
+            <Route path="/dentist-dashboard/patients/:id" element={<PrivateRoute><DentistDashboard /></PrivateRoute>} />
+            
+            <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
+       
             <Route path="*" element={<NotFound />} />
           </Routes>
         </motion.main>

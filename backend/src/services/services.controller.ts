@@ -23,8 +23,43 @@ export class ServicesController {
 
   // Public endpoint to get active services
   @Get('public')
-  async findActiveServices() {
-    return this.servicesService.findAll(true);
+  async findActiveServices(
+    @Query('category') category?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number
+  ) {
+    return this.servicesService.findAll(
+      true, 
+      category, 
+      search,
+      page ? +page : 1,
+      limit ? +limit : 10
+    );
+  }
+
+  // Public endpoint to get dentists
+  @Get('dentists/public')
+  async findPublicDentists(
+    @Query('specialty') specialty?: string,
+    @Query('city') city?: string,
+    @Query('state') state?: string,
+    @Query('search') search?: string,
+    @Query('acceptingNewPatients') acceptingNewPatients?: boolean,
+    @Query('sortBy') sortBy?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number
+  ) {
+    return this.servicesService.findPublicDentists(
+      specialty,
+      city,
+      state,
+      search,
+      acceptingNewPatients === true,
+      sortBy,
+      page ? +page : 1,
+      limit ? +limit : 20
+    );
   }
 
   // Protected endpoints below
@@ -36,10 +71,29 @@ export class ServicesController {
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Post('bulk')
+  async bulkCreate(@Body() createServiceDtos: CreateServiceDto[]) {
+    return this.servicesService.bulkCreate(createServiceDtos);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('admin', 'dentist')
   @Get()
-  async findAll(@Query('active') active: boolean) {
-    return this.servicesService.findAll(active === true);
+  async findAll(
+    @Query('active') active: boolean,
+    @Query('category') category?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number
+  ) {
+    return this.servicesService.findAll(
+      active === true, 
+      category, 
+      search,
+      page ? +page : 1,
+      limit ? +limit : 10
+    );
   }
 
   @UseGuards(JwtAuthGuard)
@@ -53,6 +107,13 @@ export class ServicesController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() updateServiceDto: UpdateServiceDto) {
     return this.servicesService.update(id, updateServiceDto);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @Put('bulk')
+  async bulkUpdate(@Body() updates: { id: string; data: UpdateServiceDto }[]) {
+    return this.servicesService.bulkUpdate(updates);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -7,6 +7,9 @@ import { mockDentists } from "@/data/mockDentists";
 import { mockReviews } from "@/data/mockReviews";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2 } from "lucide-react";
+import { dentistAPI, reviewAPI } from "@/services/api";
+import { toast } from "sonner";
 import {
   Star,
   MapPin,
@@ -19,21 +22,179 @@ import {
   Award,
   Stethoscope,
   Languages,
-  Briefcase
+  Briefcase,
+  AlertCircle
 } from "lucide-react";
 
+// Function to format user data into dentist format
+const formatUserDataToDentist = (userData: any) => {
+  if (!userData) return null;
+  
+  // Handle different data formats (dentist application vs. approved dentist)
+  const details = userData.dentist_details || {};
+  const applicationStatus = details.application_status || userData.applicationStatus;
+  
+  return {
+    id: userData._id || userData.id,
+    firstName: userData.name?.split(' ')[0] || userData.firstName || '',
+    lastName: userData.name?.split(' ').slice(1).join(' ') || userData.lastName || '',
+    email: userData.email || '',
+    specialty: Array.isArray(details.specialties) 
+      ? details.specialties[0] 
+      : details.specialties || userData.specialties || 'General Dentistry',
+    image: userData.profile_picture || userData.image || '/placeholder.svg',
+    phoneNumber: details.office_phone || userData.phone_number || userData.officePhone || '',
+    address: details.address || userData.address || '',
+    city: details.city || userData.city || '',
+    state: details.state || userData.state || '',
+    zipCode: details.zip_code || userData.zipCode || '',
+    bio: details.bio || userData.bio || '',
+    education: Array.isArray(details.education) 
+      ? details.education 
+      : typeof details.education === 'string'
+        ? details.education.split('\n') 
+        : typeof userData.education === 'string'
+          ? userData.education.split('\n')
+          : Array.isArray(userData.education) 
+            ? userData.education 
+            : [],
+    certifications: Array.isArray(details.certifications) 
+      ? details.certifications 
+      : typeof details.certifications === 'string'
+        ? details.certifications.split('\n')
+        : typeof userData.certifications === 'string'
+          ? userData.certifications.split('\n')
+          : Array.isArray(userData.certifications)
+            ? userData.certifications
+            : [],
+    services: Array.isArray(details.services) 
+      ? details.services 
+      : Array.isArray(userData.services)
+        ? userData.services
+        : [],
+    languages: Array.isArray(details.languages) 
+      ? details.languages 
+      : typeof details.languages === 'string'
+        ? details.languages.split(',').map(l => l.trim())
+        : typeof userData.languages === 'string'
+          ? userData.languages.split(',').map(l => l.trim())
+          : Array.isArray(userData.languages)
+            ? userData.languages
+            : [],
+    experience: details.experience || userData.experience || 0,
+    rating: userData.rating || 0,
+    reviewCount: userData.reviewCount || 0,
+    availability: details.business_hours || userData.businessHours || userData.availability || '',
+    acceptingNewPatients: userData.acceptingNewPatients !== false,
+    insuranceAccepted: Array.isArray(details.accepted_insurance)
+      ? details.accepted_insurance
+      : typeof details.accepted_insurance === 'string'
+        ? details.accepted_insurance.split(',').map(i => i.trim())
+        : Array.isArray(userData.insuranceAccepted)
+          ? userData.insuranceAccepted
+          : [],
+    applicationStatus: applicationStatus || 'approved'
+  };
+};
+
 const DentistProfile = () => {
-  const { name } = useParams<{ name: string }>();
-  
-  const dentist = mockDentists.find((d) => {
-    const dentistFullName = `${d.firstName}-${d.lastName}`.toLowerCase();
-    return dentistFullName === name?.toLowerCase();
-  });
-  
-  const dentistId = dentist?.id || 0;
-  const dentistReviews = mockReviews.filter((r) => r.dentistId === dentistId);
-  
+  const { id, name } = useParams<{ id?: string; name?: string }>();
+  const [isLoading, setIsLoading] = useState(true);
+  const [dentist, setDentist] = useState<any>(null);
+  const [dentistReviews, setDentistReviews] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
+
+  useEffect(() => {
+    const fetchDentistData = async () => {
+      setIsLoading(true);
+      try {
+        let dentistData;
+        // First check if we have an ID, which is preferred
+        if (id) {
+          try {
+            const response = await dentistAPI.getDentistById(id);
+            if (response.data) {
+              dentistData = formatUserDataToDentist(response.data);
+            }
+          } catch (error) {
+            console.error("Failed to fetch dentist by ID:", error);
+          }
+        } 
+        
+        // If no ID or the ID request failed, try by name
+        if (!dentistData && name) {
+          try {
+            // Try to fetch all dentists and find by name
+            const response = await dentistAPI.getAllDentists();
+            if (response.data?.data && Array.isArray(response.data.data)) {
+              const matchingDentist = response.data.data.find((d: any) => {
+                const dentistFullName = `${d.firstName}-${d.lastName}`.toLowerCase();
+                return dentistFullName === name.toLowerCase();
+              });
+              if (matchingDentist) {
+                dentistData = formatUserDataToDentist(matchingDentist);
+              }
+            }
+          } catch (error) {
+            console.error("Failed to fetch dentist by name:", error);
+          }
+        }
+
+        // If both methods failed, fall back to mock data (for development only)
+        if (!dentistData && name) {
+          const mockDentist = mockDentists.find((d) => {
+            const dentistFullName = `${d.firstName}-${d.lastName}`.toLowerCase();
+            return dentistFullName === name.toLowerCase();
+          });
+          if (mockDentist) {
+            dentistData = formatUserDataToDentist(mockDentist);
+          }
+        }
+
+        if (dentistData) {
+          setDentist(dentistData);
+          
+          // Try to fetch reviews for this dentist
+          try {
+            if (dentistData.id) {
+              const reviewsResponse = await reviewAPI.getDentistReviews(dentistData.id);
+              if (reviewsResponse.data) {
+                setDentistReviews(reviewsResponse.data);
+              } else {
+                // Fall back to mock reviews matching this dentist ID
+                setDentistReviews(mockReviews.filter((r) => r.dentistId === dentistData.id));
+              }
+            }
+          } catch (error) {
+            console.error("Failed to load reviews:", error);
+            // Fall back to mock reviews matching this dentist ID
+            setDentistReviews(mockReviews.filter((r) => r.dentistId === dentistData.id));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load dentist:", error);
+        toast.error("Failed to load dentist information");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDentistData();
+  }, [id, name]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center space-y-4">
+            <Loader2 className="w-12 h-12 text-dentist-600 animate-spin" />
+            <p className="text-dentist-600 font-medium">Loading dentist details...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!dentist) {
     return (
@@ -51,6 +212,13 @@ const DentistProfile = () => {
       </div>
     );
   }
+
+  // Ensure arrays are properly initialized even if some properties are missing
+  const languages = Array.isArray(dentist.languages) ? dentist.languages : [];
+  const insuranceAccepted = Array.isArray(dentist.insuranceAccepted) ? dentist.insuranceAccepted : [];
+  const education = Array.isArray(dentist.education) ? dentist.education : [];
+  const certifications = Array.isArray(dentist.certifications) ? dentist.certifications : [];
+  const services = Array.isArray(dentist.services) ? dentist.services : [];
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -71,36 +239,49 @@ const DentistProfile = () => {
                 <div className="p-6">
                   <div className="flex items-center mb-4">
                     <Star className="h-5 w-5 text-yellow-400 fill-yellow-400 mr-1" />
-                    <span className="font-semibold mr-2">{dentist.rating}</span>
-                    <span className="text-gray-500">({dentist.reviewCount} reviews)</span>
+                    <span className="font-semibold mr-2">{dentist.rating || 0}</span>
+                    <span className="text-gray-500">({dentist.reviewCount || 0} reviews)</span>
                   </div>
+                  
+                  {/* Display pending application status if applicable */}
+                  {dentist.applicationStatus === 'pending' && (
+                    <div className="bg-yellow-50 border border-yellow-100 rounded-lg p-4 mb-4">
+                      <div className="flex items-center text-yellow-800">
+                        <Clock className="h-5 w-5 mr-2 flex-shrink-0" />
+                        <div>
+                          <p className="font-medium">Application Under Review</p>
+                          <p className="text-sm">Your dentist application is currently being reviewed by our team. Some profile information may be limited until approval.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   
                   <div className="space-y-4">
                     <div className="flex items-start">
                       <MapPin className="h-5 w-5 text-gray-500 mr-3 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="text-gray-900">{dentist.address}</p>
-                        <p className="text-gray-900">{dentist.city}, {dentist.state} {dentist.zipCode}</p>
+                        <p className="text-gray-900">{dentist.address || 'No address provided'}</p>
+                        <p className="text-gray-900">{dentist.city && dentist.state ? `${dentist.city}, ${dentist.state} ${dentist.zipCode || ''}` : 'Location not available'}</p>
                       </div>
                     </div>
                     
                     <div className="flex items-center">
                       <Phone className="h-5 w-5 text-gray-500 mr-3 flex-shrink-0" />
-                      <p className="text-gray-900">{dentist.phoneNumber}</p>
+                      <p className="text-gray-900">{dentist.phoneNumber || 'No phone provided'}</p>
                     </div>
                     
                     <div className="flex items-center">
                       <Mail className="h-5 w-5 text-gray-500 mr-3 flex-shrink-0" />
-                      <p className="text-gray-900">{dentist.email}</p>
+                      <p className="text-gray-900">{dentist.email || 'No email provided'}</p>
                     </div>
                     
                     <div className="flex items-center">
                       <Clock className="h-5 w-5 text-gray-500 mr-3 flex-shrink-0" />
-                      <p className="text-gray-900">{dentist.availability}</p>
+                      <p className="text-gray-900">{dentist.availability || 'Hours not specified'}</p>
                     </div>
                     
                     <div className="flex items-center">
-                      {dentist.acceptingNewPatients ? (
+                      {dentist.acceptingNewPatients !== false ? (
                         <>
                           <CheckCircle className="h-5 w-5 text-dentist-600 mr-3 flex-shrink-0" />
                           <p className="text-dentist-600 font-medium">Accepting New Patients</p>
@@ -116,7 +297,7 @@ const DentistProfile = () => {
                   
                   <div className="mt-6">
                     <Button className="w-full" asChild>
-                      <Link to={`/book/${dentistId}`}>Book Appointment</Link>
+                      <Link to={`/book/${dentist.id}`}>Book Appointment</Link>
                     </Button>
                   </div>
                 </div>
@@ -127,7 +308,7 @@ const DentistProfile = () => {
               <h1 className="text-3xl font-bold text-gray-900 mb-1">
                 Dr. {dentist.firstName} {dentist.lastName}
               </h1>
-              <p className="text-xl text-dentist-600 font-medium mb-6">{dentist.specialty}</p>
+              <p className="text-xl text-dentist-600 font-medium mb-6">{dentist.specialty || 'General Dentistry'}</p>
               
               <Tabs defaultValue="overview" onValueChange={setActiveTab} className="w-full">
                 <TabsList className="mb-6">
@@ -140,7 +321,7 @@ const DentistProfile = () => {
                 <TabsContent value="overview">
                   <div className="prose max-w-none">
                     <h2 className="text-xl font-semibold mb-4">About Dr. {dentist.lastName}</h2>
-                    <p className="mb-6 text-gray-700">{dentist.bio}</p>
+                    <p className="mb-6 text-gray-700">{dentist.bio || 'No bio provided.'}</p>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                       <div className="flex items-center bg-gray-50 p-4 rounded-lg">
@@ -149,7 +330,7 @@ const DentistProfile = () => {
                         </div>
                         <div>
                           <h3 className="font-medium text-gray-900">Experience</h3>
-                          <p className="text-gray-700">{dentist.experience} years</p>
+                          <p className="text-gray-700">{dentist.experience || 0} years</p>
                         </div>
                       </div>
                       
@@ -159,19 +340,23 @@ const DentistProfile = () => {
                         </div>
                         <div>
                           <h3 className="font-medium text-gray-900">Languages</h3>
-                          <p className="text-gray-700">{dentist.languages.join(", ")}</p>
+                          <p className="text-gray-700">{languages.length > 0 ? languages.join(", ") : 'English'}</p>
                         </div>
                       </div>
                     </div>
                     
                     <h2 className="text-xl font-semibold mb-4">Insurance Accepted</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-6">
-                      {dentist.insuranceAccepted.map((insurance) => (
-                        <div key={insurance} className="flex items-center">
-                          <Shield className="h-4 w-4 text-dentist-500 mr-2" />
-                          <span className="text-gray-700">{insurance}</span>
-                        </div>
-                      ))}
+                      {insuranceAccepted.length > 0 ? (
+                        insuranceAccepted.map((insurance) => (
+                          <div key={insurance} className="flex items-center">
+                            <Shield className="h-4 w-4 text-dentist-500 mr-2" />
+                            <span className="text-gray-700">{insurance}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-gray-500">Insurance information not available</p>
+                      )}
                     </div>
                   </div>
                 </TabsContent>
@@ -179,26 +364,34 @@ const DentistProfile = () => {
                 <TabsContent value="education">
                   <div className="prose max-w-none">
                     <h2 className="text-xl font-semibold mb-4">Education</h2>
-                    <ul className="space-y-4 mb-6">
-                      {dentist.education.map((edu, index) => (
-                        <li key={index} className="flex">
-                          <div className="mr-3 h-6 w-6 bg-dentist-100 rounded-full flex items-center justify-center text-dentist-600 flex-shrink-0 mt-0.5">
-                            <span className="text-sm">{index + 1}</span>
-                          </div>
-                          <span className="text-gray-700">{edu}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    {education.length > 0 ? (
+                      <ul className="space-y-4 mb-6">
+                        {education.map((edu, index) => (
+                          <li key={index} className="flex">
+                            <div className="mr-3 h-6 w-6 bg-dentist-100 rounded-full flex items-center justify-center text-dentist-600 flex-shrink-0 mt-0.5">
+                              <span className="text-sm">{index + 1}</span>
+                            </div>
+                            <span className="text-gray-700">{edu}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mb-6 text-gray-500">Education information not available</p>
+                    )}
                     
                     <h2 className="text-xl font-semibold mb-4">Certifications</h2>
-                    <ul className="space-y-4 mb-6">
-                      {dentist.certifications.map((cert, index) => (
-                        <li key={index} className="flex">
-                          <Award className="h-5 w-5 text-dentist-500 mr-3 flex-shrink-0 mt-0.5" />
-                          <span className="text-gray-700">{cert}</span>
-                        </li>
-                      ))}
-                    </ul>
+                    {certifications.length > 0 ? (
+                      <ul className="space-y-4 mb-6">
+                        {certifications.map((cert, index) => (
+                          <li key={index} className="flex">
+                            <Award className="h-5 w-5 text-dentist-500 mr-3 flex-shrink-0 mt-0.5" />
+                            <span className="text-gray-700">{cert}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mb-6 text-gray-500">Certification information not available</p>
+                    )}
                     
                     <div className="bg-gray-50 p-6 rounded-lg">
                       <div className="flex items-center mb-4">
@@ -206,7 +399,7 @@ const DentistProfile = () => {
                         <h3 className="text-lg font-semibold">Professional Experience</h3>
                       </div>
                       <p className="text-gray-700 mb-4">
-                        Dr. {dentist.lastName} has {dentist.experience} years of experience in {dentist.specialty}.
+                        Dr. {dentist.lastName} has {dentist.experience || 'several'} years of experience in {dentist.specialty || 'dentistry'}.
                       </p>
                     </div>
                   </div>
@@ -215,14 +408,18 @@ const DentistProfile = () => {
                 <TabsContent value="services">
                   <div className="prose max-w-none">
                     <h2 className="text-xl font-semibold mb-4">Services Offered</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      {dentist.services.map((service) => (
-                        <div key={service} className="flex items-start bg-gray-50 p-4 rounded-lg">
-                          <Stethoscope className="h-5 w-5 text-dentist-500 mr-3 mt-0.5 flex-shrink-0" />
-                          <span className="text-gray-700">{service}</span>
-                        </div>
-                      ))}
-                    </div>
+                    {services.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        {services.map((service) => (
+                          <div key={service} className="flex items-start bg-gray-50 p-4 rounded-lg">
+                            <Stethoscope className="h-5 w-5 text-dentist-500 mr-3 mt-0.5 flex-shrink-0" />
+                            <span className="text-gray-700">{service}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500">Services information not available</p>
+                    )}
                   </div>
                 </TabsContent>
                 
@@ -231,17 +428,21 @@ const DentistProfile = () => {
                     <div className="flex items-center mb-6">
                       <div className="flex items-center mr-4">
                         <Star className="h-6 w-6 text-yellow-400 fill-yellow-400 mr-1" />
-                        <span className="text-2xl font-bold">{dentist.rating}</span>
+                        <span className="text-2xl font-bold">{dentist.rating || '0'}</span>
                       </div>
                       <span className="text-gray-500">
-                        Based on {dentist.reviewCount} reviews
+                        Based on {dentist.reviewCount || '0'} reviews
                       </span>
                     </div>
                     
                     <div className="space-y-4">
-                      {dentistReviews.map((review) => (
-                        <ReviewCard key={review.id} review={review} />
-                      ))}
+                      {dentistReviews.length > 0 ? (
+                        dentistReviews.map((review) => (
+                          <ReviewCard key={review.id} review={review} />
+                        ))
+                      ) : (
+                        <p className="text-gray-500">No reviews yet. Be the first to leave a review!</p>
+                      )}
                     </div>
                   </div>
                 </TabsContent>

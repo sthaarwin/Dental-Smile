@@ -14,9 +14,13 @@ const DentistCard = ({ dentist }: DentistCardProps) => {
 
   // Create URL-friendly name
   const dentistUrlName = `${dentist.firstName}-${dentist.lastName}`.toLowerCase();
+  
+  // Use both ID and name for better URL structure
+  const profileUrl = `/dentist/${dentist.id}/${dentistUrlName}`;
+  const bookingUrl = `/book/${dentist.id}`;
 
   const handleCardClick = () => {
-    navigate(`/dentist/${dentistUrlName}`);
+    navigate(profileUrl);
   };
 
   return (
@@ -40,10 +44,18 @@ const DentistCard = ({ dentist }: DentistCardProps) => {
           />
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-4">
             <div className="flex items-center text-white">
-              <Star className="h-4 w-4 text-yellow-400 mr-1 flex-shrink-0" />
-              <span className="font-semibold">{dentist.rating}</span>
-              <span className="mx-1 text-sm text-gray-300">•</span>
-              <span className="text-sm">{dentist.reviewCount} reviews</span>
+              {dentist.rating > 0 ? (
+                <>
+                  <Star className="h-4 w-4 text-yellow-400 mr-1 flex-shrink-0" />
+                  <span className="font-semibold">{dentist.rating}</span>
+                  <span className="mx-1 text-sm text-gray-300">•</span>
+                  <span className="text-sm">{dentist.reviewCount} reviews</span>
+                </>
+              ) : (
+                <span className="bg-dentist-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                  New Dentist
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -72,13 +84,13 @@ const DentistCard = ({ dentist }: DentistCardProps) => {
           )}
           
           <div className="mt-auto" onClick={(e) => e.stopPropagation()}>
-            <Link to={`/dentist/${dentistUrlName}`}>
+            <Link to={profileUrl}>
               <Button variant="outline" className="w-full mb-2">
                 View Profile
               </Button>
             </Link>
             <Button className="w-full" asChild>
-              <Link to={`/book/${dentistUrlName}`}>
+              <Link to={bookingUrl}>
                 Book Appointment
               </Link>
             </Button>

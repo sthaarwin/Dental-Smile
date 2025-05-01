@@ -25,7 +25,7 @@ import {
   Camera,
   Upload
 } from "lucide-react";
-import { userAPI } from "@/services/api";
+import { userAPI, authAPI } from "@/services/api";
 
 interface UserProfile {
   name: string;
@@ -39,149 +39,223 @@ const Profile = () => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile>({
     name: "",
     email: "",
     phone_number: "",
-    address: "",
-    profile_picture: "",
+    address: ""
   });
-
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   useEffect(() => {
-    checkAuthentication();
-  }, []);
-
-  const checkAuthentication = () => {
-    const token = localStorage.getItem("token");
-    const userData = localStorage.getItem("user");
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setIsAuthenticated(false);
+          return;
+        }
+        
+        setIsLoading(true);
+        
+        // Get user data from localStorage
+        const storedUserData = localStorage.getItem("user");
+        if (storedUserData) {
+          const userData = JSON.parse(storedUserData);
+          setProfile({
+            name: userData.name || "",
+            email: userData.email || "",
+            phone_number: userData.phone_number || "",
+            address: userData.address || "",
+            profile_picture: userData.profile_picture || ""
+          });
+          
+          if (userData.profile_picture) {
+            setImagePreview(userData.profile_picture);
+          }
+          
+          // Extract user role
+          if (userData.role) {
+            setUserRole(userData.role);
+          }
+        }
+        
+        // Try to get the most up-to-date user data from the API
+        try {
+          const response = await authAPI.getCurrentUser();
+          if (response && response.data) {
+            const userData = response.data;
+            setProfile({
+              name: userData.name || profile.name,
+              email: userData.email || profile.email,
+              phone_number: userData.phone_number || profile.phone_number,
+              address: userData.address || profile.address,
+              profile_picture: userData.profile_picture || profile.profile_picture
+            });
+            
+            if (userData.profile_picture) {
+              setImagePreview(userData.profile_picture);
+            }
+            
+            // Extract user role from API response
+            if (userData.role) {
+              setUserRole(userData.role);
+            }
+            
+            // Update localStorage with the latest data
+            localStorage.setItem("user", JSON.stringify(userData));
+          }
+        } catch (apiError) {
+          console.error("Failed to fetch user data from API:", apiError);
+          // Continue with the data from localStorage
+        }
+        
+        setIsAuthenticated(true);
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error checking authentication:", error);
+        setIsAuthenticated(false);
+        setIsLoading(false);
+      }
+    };
     
-    if (!token || !userData) {
-      setIsAuthenticated(false);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsAuthenticated(true);
-    loadUserProfile();
-    setIsLoading(false);
-  };
-
-  const loadUserProfile = () => {
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      const user = JSON.parse(userData);
-      setProfile({
-        name: user.name || "",
-        email: user.email || "",
-        phone_number: user.phone_number || "",
-        address: user.address || "",
-        profile_picture: user.profile_picture || "",
-      });
-      setImagePreview(user.profile_picture || null);
-      console.log("Loaded profile data:", user);
-    }
-  };
-
+    checkAuth();
+  }, []);
+  
   const handleImageClick = () => {
-    fileInputRef.current?.click();
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Size validation
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error("Image size should be less than 2MB");
-        return;
-      }
-      
-      try {
-        // Show a loading state
-        toast.loading("Uploading image...");
-        
-        // For preview - create a temporary local URL
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const preview = reader.result as string;
-          setImagePreview(preview);
-        };
-        reader.readAsDataURL(file);
-        
-        // Upload to server using the dedicated profile picture upload endpoint
-        const imageUrl = await userAPI.uploadProfilePicture(file);
-        
-        // Update profile with the image URL from server
-        setProfile(prev => ({ ...prev, profile_picture: imageUrl }));
-        
-        // Also update the user data in localStorage so the header shows the updated picture
-        const userData = JSON.parse(localStorage.getItem("user") || "{}");
-        userData.profile_picture = imageUrl;
-        localStorage.setItem("user", JSON.stringify(userData));
-        
-        toast.dismiss();
-        toast.success("Image uploaded successfully");
-      } catch (error) {
-        toast.dismiss();
-        toast.error("Failed to upload image");
-        console.error("Image upload error:", error);
-      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setImagePreview(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
-
+  
   const handleSave = async () => {
     try {
-      console.log("Saving profile:", profile);
+      setIsLoading(true);
       
-      // Don't include profile_picture in general profile update
-      // since we handle it separately via the upload API
-      const profileData = {
+      // First upload profile picture if it was changed
+      let profilePictureUrl = profile.profile_picture;
+      if (imagePreview && imagePreview !== profile.profile_picture) {
+        try {
+          // If imagePreview starts with "data:" it's a newly selected file
+          if (imagePreview.startsWith('data:')) {
+            setIsUploadingImage(true);
+            // Convert base64 to blob
+            const response = await fetch(imagePreview);
+            const blob = await response.blob();
+            const file = new File([blob], "profile-picture.jpg", { 
+              type: blob.type || 'image/jpeg' 
+            });
+            
+            // Create form data for upload
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            console.log("Uploading image to Cloudinary...");
+            
+            // Upload the image to Cloudinary via our backend
+            const uploadResponse = await userAPI.uploadProfilePicture(formData);
+            console.log("Upload response:", uploadResponse);
+            
+            if (uploadResponse && uploadResponse.data && uploadResponse.data.imageUrl) {
+              profilePictureUrl = uploadResponse.data.imageUrl;
+              console.log("New profile picture URL:", profilePictureUrl);
+              
+              // Update imagePreview with the Cloudinary URL
+              setImagePreview(profilePictureUrl);
+            } else {
+              console.error("Invalid upload response structure:", uploadResponse);
+              toast.error("Failed to process uploaded image");
+              setIsUploadingImage(false);
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch (error) {
+          console.error("Failed to upload profile picture:", error);
+          toast.error("Failed to upload profile picture");
+          setIsUploadingImage(false);
+          setIsLoading(false);
+          return;
+        } finally {
+          setIsUploadingImage(false);
+        }
+      }
+      
+      // Update the user profile
+      const updateData = {
         name: profile.name,
         email: profile.email,
         phone_number: profile.phone_number,
         address: profile.address,
+        profile_picture: profilePictureUrl
       };
       
-      const response = await userAPI.updateProfile(profileData);
+      console.log("Updating profile with data:", updateData);
       
-      console.log("Backend response:", response.data);
+      // Send the update to the backend
+      const response = await userAPI.updateProfile(updateData);
+      console.log("Profile update response:", response);
       
-      const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      const updatedUser = { 
-        ...userData,
-        name: profile.name,
-        email: profile.email,
-        phone_number: profile.phone_number,
-        address: profile.address,
-        // Keep the existing profile_picture from localStorage
-      };
-      
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-      console.log("Updated localStorage:", updatedUser);
-      
-      toast.success("Profile updated successfully");
-      setIsEditing(false);
+      if (response && response.data) {
+        // Update the local state
+        setProfile({
+          ...profile,
+          ...response.data,
+          profile_picture: profilePictureUrl || profile.profile_picture
+        });
+        
+        // Update the data in localStorage
+        const storedUserData = localStorage.getItem("user");
+        if (storedUserData) {
+          const userData = JSON.parse(storedUserData);
+          const updatedUserData = {
+            ...userData,
+            ...updateData
+          };
+          localStorage.setItem("user", JSON.stringify(updatedUserData));
+          console.log("Updated user data in localStorage:", updatedUserData);
+        }
+        
+        toast.success("Profile updated successfully!");
+        setIsEditing(false);
+      }
     } catch (error) {
+      console.error("Error updating profile:", error);
       toast.error("Failed to update profile");
-      console.error("Profile update error:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
-
+  
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login");
+    toast.success("Logged out successfully!");
   };
-
-  if (isLoading) {
+  
+  if (isLoading && isAuthenticated === null) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-dentist-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-dentist-600"></div>
+        <p className="mt-4 text-gray-600">Loading...</p>
       </div>
     );
   }
@@ -207,10 +281,14 @@ const Profile = () => {
                   <div className="flex flex-col items-center space-y-4">
                     <div 
                       className="w-24 h-24 rounded-full bg-dentist-100 flex items-center justify-center relative overflow-hidden"
-                      onClick={isEditing ? handleImageClick : undefined}
-                      style={{cursor: isEditing ? 'pointer' : 'default'}}
+                      onClick={isEditing && !isUploadingImage ? handleImageClick : undefined}
+                      style={{cursor: (isEditing && !isUploadingImage) ? 'pointer' : 'default'}}
                     >
-                      {imagePreview ? (
+                      {isUploadingImage ? (
+                        <div className="absolute inset-0 bg-gray-200 bg-opacity-80 flex items-center justify-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-dentist-600"></div>
+                        </div>
+                      ) : imagePreview ? (
                         <img 
                           src={imagePreview} 
                           alt="Profile" 
@@ -220,7 +298,7 @@ const Profile = () => {
                         <User className="w-12 h-12 text-dentist-600" />
                       )}
                       
-                      {isEditing && (
+                      {isEditing && !isUploadingImage && (
                         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                           <Camera className="w-8 h-8 text-white" />
                         </div>
@@ -241,12 +319,21 @@ const Profile = () => {
                 </CardHeader>
                 <CardContent>
                   <nav className="space-y-2">
-                    <Button variant="ghost" className="w-full justify-start" asChild>
-                      <Link to="/dashboard">
-                        <CalendarDays className="w-5 h-5 mr-3" />
-                        Dashboard
-                      </Link>
-                    </Button>
+                    {userRole === 'admin' ? (
+                      <Button variant="ghost" className="w-full justify-start" asChild>
+                        <Link to="/admin">
+                          <CalendarDays className="w-5 h-5 mr-3" />
+                          Admin Dashboard
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" className="w-full justify-start" asChild>
+                        <Link to="/dashboard">
+                          <CalendarDays className="w-5 h-5 mr-3" />
+                          Dashboard
+                        </Link>
+                      </Button>
+                    )}
                     <Button variant="ghost" className="w-full justify-start" asChild>
                       <Link to="/dashboard/profile">
                         <User className="w-5 h-5 mr-3" />
@@ -296,38 +383,33 @@ const Profile = () => {
                     <div className="flex flex-col items-center mb-6">
                       <div 
                         className="w-28 h-28 rounded-full bg-dentist-100 flex items-center justify-center relative overflow-hidden"
-                        onClick={isEditing ? handleImageClick : undefined}
-                        style={{cursor: isEditing ? 'pointer' : 'default'}}
+                        onClick={isEditing && !isUploadingImage ? handleImageClick : undefined}
+                        style={{cursor: (isEditing && !isUploadingImage) ? 'pointer' : 'default'}}
                       >
-                        {imagePreview ? (
+                        {isUploadingImage ? (
+                          <div className="absolute inset-0 bg-gray-200 bg-opacity-80 flex items-center justify-center">
+                            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-dentist-600"></div>
+                          </div>
+                        ) : imagePreview ? (
                           <img 
                             src={imagePreview} 
                             alt="Profile" 
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <User className="w-16 h-16 text-dentist-600" />
+                          <User className="w-14 h-14 text-dentist-600" />
                         )}
                         
-                        {isEditing && (
+                        {isEditing && !isUploadingImage && (
                           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                            <Upload className="w-10 h-10 text-white" />
+                            <Camera className="w-10 h-10 text-white" />
                           </div>
                         )}
                       </div>
-                      {isEditing && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="mt-2"
-                          onClick={handleImageClick}
-                        >
-                          Change Photo
-                        </Button>
-                      )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                  <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Full Name</Label>
                       <div className="relative">

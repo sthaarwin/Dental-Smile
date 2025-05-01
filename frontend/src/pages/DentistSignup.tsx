@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet";
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
   FileCheck,
   X,
   Plus,
+  Loader2,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -34,11 +35,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import api from "@/services/api";
 
 const DentistSignup = () => {
   const [step, setStep] = useState(1);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [user, setUser] = useState<any>(null);
   const [formData, setFormData] = useState({
-    // Personal Information
     firstName: "",
     middleName: "",
     lastName: "",
@@ -47,14 +51,12 @@ const DentistSignup = () => {
     confirmPassword: "",
     phone: "",
     
-    // Professional Information
     specialties: [] as string[],
     experience: "",
     education: "",
     certifications: "",
     licenseNumber: "",
     
-    // Practice Information
     practiceName: "",
     address: "",
     city: "",
@@ -64,16 +66,56 @@ const DentistSignup = () => {
     businessHours: "",
     acceptedInsurance: "",
     
-    // Additional Information
-    bio: "",
+     bio: "",
     services: [] as string[],
     languages: "",
+    
+     applicationStatus: "pending",
   });
 
   const [inputService, setInputService] = useState("");
 
-  // Available dental services for the dropdown
-  const availableServices = [
+   useEffect(() => {
+    const checkAuth = async () => {
+      setIsLoading(true);
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        setIsAuthenticated(false);
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+         const userString = localStorage.getItem("user");
+        if (userString) {
+          const userData = JSON.parse(userString);
+          setUser(userData);
+          
+           setFormData(prev => ({
+            ...prev,
+            firstName: userData.name?.split(' ')[0] || "",
+            lastName: userData.name?.split(' ').slice(1).join(' ') || "",
+            email: userData.email || "",
+            phone: userData.phone_number || "",
+          }));
+        }
+        
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error("Error loading user data:", error);
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
+
+   const availableServices = [
     "General Check-up",
     "Teeth Cleaning",
     "Teeth Whitening",
@@ -97,8 +139,7 @@ const DentistSignup = () => {
   };
 
   const handleNext = () => {
-    // Validate current step
-    if (step === 1) {
+     if (step === 1) {
       if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
         toast.error("Please fill in all required fields");
         return;
@@ -116,11 +157,101 @@ const DentistSignup = () => {
     if (step > 1) setStep(step - 1);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would normally validate and submit to your backend
-    console.log("Form submitted:", formData);
-    toast.success("Registration submitted successfully!");
+    
+    try {
+      // Validate form data
+      if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+        toast.error("Please fill in all required personal information");
+        return;
+      }
+
+      // Format the name field as required by the backend
+      const fullName = `${formData.firstName} ${formData.middleName ? formData.middleName + ' ' : ''}${formData.lastName}`.trim();
+      
+      // Create the data object with fields the backend expects
+      const dentistData = {
+        name: fullName,
+        email: formData.email,
+        password: formData.password,
+        phone_number: formData.phone,
+        role: 'dentist',
+        
+        // Professional details
+        dentist_details: {
+          specialties: formData.specialties,
+          experience: parseInt(formData.experience) || 0,
+          education: formData.education,
+          certifications: formData.certifications,
+          license_number: formData.licenseNumber,
+          practice_name: formData.practiceName,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip_code: formData.zipCode,
+          office_phone: formData.officePhone,
+          business_hours: formData.businessHours,
+          accepted_insurance: formData.acceptedInsurance.split(',').map(item => item.trim()),
+          bio: formData.bio,
+          services: formData.services,
+          languages: formData.languages.split(',').map(item => item.trim()),
+          application_status: "pending"
+        }
+      };
+      
+      let response;
+      
+      // Check if we're already logged in
+      if (isAuthenticated && user) {
+        // Update existing user with dentist details
+        delete dentistData.password; // Remove password from update data
+        
+        // Format the data properly for the backend API endpoint
+        // The backend expects the ID as a direct parameter, not in the request body
+        // So we pass it directly in the URL path
+        response = await api.put(`/users/update-to-dentist?userId=${user._id || user.id}`, dentistData);
+        
+        toast.success("Dentist application submitted successfully! Our team will review your details.");
+      } else {
+        // Register as a new dentist
+        response = await api.post('/auth/register', dentistData);
+        
+        // Store token if returned by API
+        if (response.data.token) {
+          localStorage.setItem("token", response.data.token);
+        }
+        
+        // Store user data if returned
+        if (response.data.user) {
+          localStorage.setItem("user", JSON.stringify(response.data.user));
+        }
+        
+        toast.success("Registration successful! Your application will be reviewed shortly.");
+      }
+      
+      // Redirect after a slight delay
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 1500);
+      
+    } catch (error: any) {
+      // Enhanced error handling
+      console.error("Application submission error:", error);
+      
+      // Handle specific status codes
+      if (error.response?.status === 409) {
+        toast.error("This email is already registered. Please log in first, then complete your dentist profile.");
+      } else {
+        // Extract more specific error message if available
+        const errorMessage = 
+          error.response?.data?.message || 
+          error.response?.data?.error || 
+          "Failed to submit application. Please check your information and try again.";
+        
+        toast.error(errorMessage);
+      }
+    }
   };
 
   const addService = (service: string) => {
@@ -135,8 +266,20 @@ const DentistSignup = () => {
   };
 
   const handleServiceSelect = (value: string) => {
-    addService(value);
+    if (value === "custom") {
+      setInputService("custom");
+    } else {
+      addService(value);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-12 w-12 text-dentist-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-gray-50 to-white">
@@ -218,6 +361,18 @@ const DentistSignup = () => {
               {/* Step 1: Personal Information */}
               {step === 1 && (
                 <div className="p-8">
+                  {isAuthenticated && (
+                    <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-100">
+                      <p className="text-green-800 flex items-center">
+                        <CheckCircle className="h-5 w-5 mr-2" />
+                        <span className="font-medium">You're signed in as {user.name}</span>
+                      </p>
+                      <p className="text-sm text-green-700 mt-1">
+                        We've pre-filled some of your information. Please review and complete the rest of the form.
+                      </p>
+                    </div>
+                  )}
+                  
                   <div className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
@@ -266,6 +421,7 @@ const DentistSignup = () => {
                           placeholder="john@example.com"
                           className="pl-10"
                           required
+                          readOnly={isAuthenticated}
                         />
                       </div>
                     </div>

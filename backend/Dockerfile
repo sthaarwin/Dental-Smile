@@ -2,16 +2,15 @@ FROM node:slim
 
 WORKDIR /app
 
-# Install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy the project
 COPY . .
 
-# Set environment variables
 ENV NODE_ENV=development
+ENV HOST=0.0.0.0
+ENV PORT=8000
 
-EXPOSE 3000
+EXPOSE 8000
 
-CMD ["npm", "run", "start:dev"]
+CMD ["npm", "run", "start"]

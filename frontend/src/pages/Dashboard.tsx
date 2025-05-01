@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Card,
   CardContent,
@@ -66,25 +67,41 @@ const Dashboard = () => {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [newDate, setNewDate] = useState<Date>();
   const [newTime, setNewTime] = useState<string>();
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Load user data
+  useEffect(() => { 
     const userData = localStorage.getItem("user");
     if (userData) {
-      setUser(JSON.parse(userData));
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+       
+      if (parsedUser.role === 'dentist') {
+        navigate("/dentist-dashboard");
+        return;
+      } else if (parsedUser.role === 'admin') {
+        navigate("/admin");
+        return;
+      } else if (parsedUser.role !== 'patient') {
+        toast.error("Invalid user role");
+        navigate("/login");
+        return;
+      }
     }
 
     const fetchData = async () => {
-      try {
-        const appointmentsResponse = await appointmentAPI.getAppointments();
+      try { 
+        const appointmentsResponse = await appointmentAPI.myAppointments();
         setAppointments(appointmentsResponse.data);
       } catch (error) {
+        console.error("Error loading appointments:", error);
         toast.error('Failed to load appointments');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -108,8 +125,8 @@ const Dashboard = () => {
         date: newDate.toISOString().split('T')[0],
         time: newTime
       });
-
-      const updatedAppointments = await appointmentAPI.getAppointments();
+ 
+      const updatedAppointments = await appointmentAPI.myAppointments();
       setAppointments(updatedAppointments.data);
       
       toast.success("Appointment rescheduled successfully");
@@ -132,8 +149,8 @@ const Dashboard = () => {
 
     try {
       await appointmentAPI.cancelAppointment(selectedAppointment.id);
-      
-      const updatedAppointments = await appointmentAPI.getAppointments();
+       
+      const updatedAppointments = await appointmentAPI.myAppointments();
       setAppointments(updatedAppointments.data);
       
       toast.success("Appointment cancelled successfully");
@@ -168,9 +185,10 @@ const Dashboard = () => {
               <Card className="sticky top-24">
                 <CardHeader>
                   <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 rounded-full bg-dentist-100 flex items-center justify-center">
-                      <User className="w-6 h-6 text-dentist-600" />
-                    </div>
+                    <Avatar className="w-12 h-12">
+                      <AvatarImage src={user?.profile_picture} alt={user?.name} />
+                      <AvatarFallback>{user?.name?.charAt(0) || 'U'}</AvatarFallback>
+                    </Avatar>
                     <div>
                       <CardTitle>{user?.name}</CardTitle>
                       <CardDescription>{user?.email}</CardDescription>

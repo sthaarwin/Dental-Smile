@@ -1,4 +1,5 @@
-import { IsString, IsNumber, IsOptional, IsBoolean, Min } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsBoolean, Min, IsEnum } from 'class-validator';
+import { ServiceCategory } from './create-service.dto';
 
 export class UpdateServiceDto {
   @IsOptional()
@@ -26,4 +27,8 @@ export class UpdateServiceDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsEnum(ServiceCategory)
+  category?: ServiceCategory;
 }

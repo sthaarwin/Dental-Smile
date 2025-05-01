@@ -1,24 +1,30 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from './common/pipes/validation.pipe';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
   
-  // Enable CORS to allow frontend to communicate with the API
   app.enableCors({
-    origin: ['http://localhost:5173', 'http://localhost:3000'],
+    origin: [
+      configService.get<string>('FRONTEND_URL') || 'http://localhost:5173', 
+      'http://localhost:8000',
+      'http://localhost:8080'
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
   });
   
-  // Set a global prefix for all routes
   app.setGlobalPrefix('api');
   
-  // Use global validation pipe
   app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalFilters(new HttpExceptionFilter());
   
-  await app.listen(process.env.PORT ?? 3000);
+  const port = configService.get<number>('PORT') || 8000;
+  await app.listen(port);
   console.log(`Application is running on: ${await app.getUrl()}`);
 }
 bootstrap();

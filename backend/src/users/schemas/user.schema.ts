@@ -5,9 +5,6 @@ export type UserDocument = User & Document;
 
 @Schema({ timestamps: true })
 export class User {
-  @Prop()
-  _id: MongooseSchema.Types.ObjectId;
-
   @Prop({ required: true })
   name: string;
 
@@ -25,8 +22,10 @@ export class User {
 
   @Prop()
   profile_picture: string;
+  
+  @Prop({ type: MongooseSchema.Types.Mixed })
+  dentist_details: Record<string, any>;
 
-  // Define as optional method that will be implemented by Mongoose
   toObject?(): Record<string, any>;
 }
 

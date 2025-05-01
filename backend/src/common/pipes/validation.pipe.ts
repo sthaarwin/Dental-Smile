@@ -3,9 +3,10 @@ import {
   Injectable,
   ArgumentMetadata,
   BadRequestException,
+  ValidationError,
 } from '@nestjs/common';
 import { validate } from 'class-validator';
-import { plainToClass } from 'class-transformer';
+import { plainToInstance } from 'class-transformer';
 
 @Injectable()
 export class ValidationPipe implements PipeTransform<any> {
@@ -14,23 +15,15 @@ export class ValidationPipe implements PipeTransform<any> {
       return value;
     }
     
-    const object = plainToClass(metatype, value);
+    const object = plainToInstance(metatype, value);
     const errors = await validate(object);
     
     if (errors.length > 0) {
-      const messages = errors.map(err => {
-        return {
-          property: err.property,
-          constraints: err.constraints,
-        };
-      });
-      
       throw new BadRequestException({
         message: 'Validation failed',
-        errors: messages,
+        errors: errors,
       });
     }
-    
     return value;
   }
 

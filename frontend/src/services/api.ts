@@ -1,34 +1,26 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api';
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-// Create axios instance with default config
 const api = axios.create({
-  baseURL: API_URL,
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add request interceptor to add token to all requests
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-// Add response interceptor to handle token expiry
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -38,108 +30,157 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  login: async (data: { email: string; password: string }) => {
-    try {
-      const response = await api.post('/auth/login/', {
-        email: data.email,
-        password: data.password
-      });
-      
-      if (!response.data.token || !response.data.user) {
-        throw new Error('Invalid response format');
-      }
-      
-      return response;
-    } catch (error: any) {
-      if (error.response?.status === 401) {
-        throw new Error('Invalid credentials');
-      }
-      throw error;
-    }
-  },
-  getCurrentUser: () => api.get('/auth/me/'), // ensure this matches your backend endpoint
-  register: async (userData: { 
-    name: string; 
-    email: string; 
-    password: string;
-    phone_number?: string;
-  }) => {
-    try {
-      const username = userData.email.split('@')[0];
-      
-      const response = await api.post('/auth/register/', {
-        name: userData.name,
-        email: userData.email,
-        password: userData.password,
-        username: username,
-        phone_number: userData.phone_number || '' // Changed to match backend field name
-      });
-      return response;
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      throw error;
-    }
-  },
-  requestPasswordReset: (email: string) =>
-    api.post('/auth/password-reset/', { email }),
-  
-  resetPassword: (token: string, password: string) =>
-    api.post('/auth/password-reset/confirm/', { token, password }),
+  login: (credentials: { email: string; password: string }) => 
+    api.post('/auth/login', credentials),
+  register: (userData: any) => 
+    api.post('/auth/register', userData),
+  verifyEmail: (token: string) => 
+    api.get(`/auth/verify-email?token=${token}`),
+  requestPasswordReset: (email: string) => 
+    api.post('/auth/forgot-password', { email }),
+  resetPassword: (token: string, newPassword: string) => 
+    api.post('/auth/reset-password', { token, newPassword }),
+  getCurrentUser: () => 
+    api.get('/users/me'),
 };
 
 export const appointmentAPI = {
-  getAppointments: () => api.get('/appointments/'),
-  rescheduleAppointment: (id: number, data: any) => 
+  getAppointments: (params?: any) => 
+    api.get('/appointments', { params }),
+  getAppointmentById: (id: number | string) => 
+    api.get(`/appointments/${id}`),
+  createAppointment: (appointmentData: any) => 
+    api.post('/appointments', appointmentData),
+  updateAppointment: (id: number | string, appointmentData: any) => 
+    api.put(`/appointments/${id}`, appointmentData),
+  deleteAppointment: (id: number | string) => 
+    api.delete(`/appointments/${id}`),
+  getAppointmentsByDentist: (dentistId: string) => 
+    api.get(`/appointments/dentist/${dentistId}`),
+  getAppointmentsByPatient: (patientId: string) => 
+    api.get(`/appointments/patient/${patientId}`),
+  getAppointmentsByDate: (date: string) => 
+    api.get('/appointments/date', { params: { date } }),
+  myAppointments: () => api.get('/appointments/my-appointments'),
+  rescheduleAppointment: (id: number | string, data: any) => 
     api.put(`/appointments/${id}/reschedule/`, data),
-  cancelAppointment: (id: number) => 
+  cancelAppointment: (id: number | string) => 
     api.delete(`/appointments/${id}/`),
+  updateAppointmentStatus: (id: number | string, status: string) => {
+    if (!id) {
+      console.error("Cannot update appointment status: appointment ID is undefined");
+      return Promise.reject(new Error("Appointment ID is undefined"));
+    }
+    return api.patch(`/appointments/${id}/status`, { status });
+  },
+};
+
+export const scheduleAPI = {
+  getDentistSchedule: (dentistId: string) => 
+    api.get(`/schedules/dentist/${dentistId}`),
+  
+  updateSchedule: (dentistId: string, scheduleData: any) => 
+    api.put(`/schedules/dentist/${dentistId}`, scheduleData),
+    
+  addTimeSlot: (dentistId: string, timeSlotData: any) => 
+    api.post(`/schedules/dentist/${dentistId}`, timeSlotData),
+    
+  deleteTimeSlot: (dentistId: string, slotId: number, day: string) => 
+    api.delete(`/schedules/dentist/${dentistId}/${slotId}`, {
+      data: { day: day.toLowerCase() }
+    }),
+    
+  addDayOff: (dentistId: string, dateStr: string) =>
+    api.post(`/schedules/dentist/${dentistId}/day-off`, { date: dateStr }),
+    
+  removeDayOff: (dentistId: string, dateStr: string) =>
+    api.post(`/schedules/dentist/${dentistId}/remove-day-off`, { date: dateStr }),
+    
+  checkAvailability: (dentistId: string, date: string, startTime: string, endTime: string) =>
+    api.get('/schedules/availability', { 
+      params: { dentistId, date, startTime, endTime } 
+    }),
+};
+
+export const dentistAPI = {
+  getAllDentists: (params?: {
+    specialty?: string;
+    city?: string;
+    state?: string;
+    search?: string;
+    acceptingNewPatients?: boolean;
+    page?: number;
+    limit?: number;
+  }) => api.get('/services/dentists/public', { params }),
+  
+  getDentistById: (id: string) => api.get(`/users/${id}`),
+  
+  getDentistProfile: (id: string) => api.get(`/dentists/${id}/profile`),
+  
+  getDentistReviews: (id: string) => api.get(`/reviews/dentist/${id}`),
+  
+  getDentistSchedule: (id: string) => api.get(`/schedules/dentist/${id}`),
+  
+  checkDentistApplicationStatus: (id: string) => api.get(`/dentists/applications/${id}/status`),
+  
+   getDentistData: async (id: string) => {
+    try {
+       const response = await api.get(`/users/${id}`);
+      return response;
+    } catch (error) {
+       return api.get(`/dentists/${id}`);
+    }
+  }
+};
+
+export const reviewAPI = {
+  getDentistReviews: (dentistId: string) => 
+    api.get(`/reviews/dentist/${dentistId}/public`),
+  submitReview: (reviewData: any) => 
+    api.post('/reviews', reviewData),
+  updateReview: (id: string, reviewData: any) => 
+    api.put(`/reviews/${id}`, reviewData),
+  deleteReview: (id: string) => 
+    api.delete(`/reviews/${id}`),
+};
+
+export const servicesAPI = {
+  getAllServices: (params?: { 
+    page?: number; 
+    limit?: number; 
+    search?: string; 
+    category?: string;
+    active?: boolean;
+  }) => api.get('/services', { params }),
+  getServiceById: (id: string) => 
+    api.get(`/services/${id}`),
+  createService: (serviceData: any) => 
+    api.post('/services', serviceData),
+  updateService: (id: string, serviceData: any) => 
+    api.put(`/services/${id}`, serviceData),
+  deleteService: (id: string) => 
+    api.delete(`/services/${id}`),
+  activateService: (id: string) => 
+    api.patch(`/services/${id}/activate`),
+  deactivateService: (id: string) => 
+    api.patch(`/services/${id}/deactivate`),
+  getServicesByCategory: (category: string) => 
+    api.get(`/services/category/${category}`),
 };
 
 export const userAPI = {
-  updateProfile: async (data: any) => {
-    try {
-      console.log("API updateProfile called with:", data);
-      
-      // Create a new object without the profile_picture field
-      // to avoid any issues with the backend expecting a file
-      const { profile_picture, ...profileData } = data;
-      
-      // Send the request without the profile_picture field
-      const response = await api.put('/auth/profile/', profileData);
-      return response;
-    } catch (error) {
-      console.error('Profile update error:', error);
-      throw error;
-    }
-  },
-  
-  uploadProfilePicture: async (file: File) => {
-    try {
-      // Validate file size and type first
-      if (file.size > 2 * 1024 * 1024) {
-        throw new Error('Image size should be less than 2MB');
-      }
-      
-      const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-      if (!validTypes.includes(file.type)) {
-        throw new Error('Only JPG and PNG files are allowed');
-      }
-      
-      const formData = new FormData();
-      formData.append('image', file);
-      
-      const response = await api.post('/auth/upload-profile-picture/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        }
-      });
-      
-      return response.data.imageUrl;
-    } catch (error) {
-      console.error('Profile picture upload error:', error);
-      throw error;
-    }
-  }
-}
+  updateProfile: (userData: any) => 
+    api.put('/users/profile', userData),
+  updatePassword: (passwords: { currentPassword: string; newPassword: string }) => 
+    api.put('/users/update-password', passwords),
+  uploadProfilePicture: (formData: FormData) => 
+    api.post('/auth/upload-profile-picture', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+  deleteAccount: () => 
+    api.delete('/users/me'),
+};
 
 export default api;
