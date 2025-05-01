@@ -64,16 +64,20 @@ import {
 
 import { appointmentAPI } from '@/services/api';
 import api from "@/services/api";
+import { scheduleAPI } from "@/services/api";
 
 interface Appointment {
-  id: number | string; // Allow for MongoDB ObjectId string format
-  _id?: string; // Add potential MongoDB _id field for compatibility with backend
+  id: number | string; 
+  _id?: string; 
   date: string;
   time: string;
   patientName: string;
   patientId: number | string;
+  patientEmail?: string;
+  patientPhone?: string;
   service: string;
   status: "scheduled" | "completed" | "cancelled" | "no-show";
+  notes?: string;
 }
 
 interface Patient {
@@ -83,6 +87,7 @@ interface Patient {
   phone: string;
   lastVisit: string;
   nextAppointment: string | null;
+  appointments?: Appointment[];
 }
 
 interface TimeSlot {
@@ -114,7 +119,7 @@ const DentistDashboard = () => {
     isAvailable: true
   });
 
-  const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
   useEffect(() => {
     // Load dentist data
@@ -123,11 +128,10 @@ const DentistDashboard = () => {
       const parsedData = JSON.parse(dentistData);
       setDentist(parsedData);
       
-      // Check if user is a dentist
+      // Check if role is dentist
       if (parsedData.role !== "dentist") {
         toast.error("Access denied. This page is only for dentists.");
         
-        // Redirect to the appropriate dashboard based on their role
         if (parsedData.role === "admin") {
           navigate("/admin");
         } else if (parsedData.role === "patient") {
@@ -155,7 +159,6 @@ const DentistDashboard = () => {
         currentDentist = JSON.parse(dentistData);
       }
       
-      // Fetch appointments - adding dentist ID filter
       try {
         const dentistId = currentDentist?._id || currentDentist?.id;
         
@@ -166,48 +169,76 @@ const DentistDashboard = () => {
         }
         
         console.log(`Fetching appointments for dentist ID: ${dentistId}`);
-        // Use dentist-specific endpoint instead of general appointments endpoint
         const appointmentsResponse = await appointmentAPI.getAppointmentsByDentist(dentistId);
         console.log("Appointments response:", appointmentsResponse.data);
-        setAppointments(appointmentsResponse.data);
         
-        // Extract unique patients from appointments
-        if (appointmentsResponse.data && appointmentsResponse.data.length > 0) {
-          // Create a map to track unique patients by ID
+        // Process and normalize the appointments data
+        const processedAppointments = (appointmentsResponse.data || []).map(appointment => {
+          // Ensure we have consistent data structure
+          return {
+            id: appointment._id || appointment.id,
+            _id: appointment._id || appointment.id,
+            date: formatDateIfNeeded(appointment.date),
+            time: appointment.startTime || appointment.time || "Not specified", 
+            patientName: getPatientName(appointment),
+            patientId: appointment.patientId || appointment.patient?._id || appointment.patient?.id,
+            patientEmail: appointment.patient?.email || "",
+            patientPhone: appointment.patient?.phone_number || "",
+            service: appointment.service || "General Appointment",
+            status: appointment.status || "scheduled",
+            notes: appointment.notes || ""
+          };
+        });
+        
+        setAppointments(processedAppointments);
+        
+        if (processedAppointments.length > 0) {
           const patientMap = new Map();
           
-          appointmentsResponse.data.forEach(appointment => {
-            if (appointment.patientId && !patientMap.has(appointment.patientId)) {
-              patientMap.set(appointment.patientId, {
-                id: appointment.patientId,
-                name: appointment.patientName,
-                email: appointment.patientEmail || "",
-                phone: appointment.patientPhone || "",
-                lastVisit: appointment.date || "",
-                nextAppointment: null
+          processedAppointments.forEach(appointment => {
+            const patientId = appointment.patientId;
+            
+            if (!patientId) {
+              console.log("Skipping appointment with missing patient ID:", appointment);
+              return;
+            }
+            
+            if (!patientMap.has(patientId)) {
+              // Extract patient data from the appointment
+              const patient = appointment.patient || {};
+              
+              patientMap.set(patientId, {
+                id: patientId,
+                name: appointment.patientName || "Unknown Patient",
+                email: appointment.patientEmail || patient.email || "",
+                phone: appointment.patientPhone || patient.phone_number || patient.phone || "",
+                lastVisit: appointment.status === "completed" ? appointment.date : "",
+                nextAppointment: appointment.status === "scheduled" ? appointment.date : null,
+                appointments: [appointment]
               });
-            }
-            
-            // Update next appointment for returning patients if this appointment is in the future
-            const today = new Date().toISOString().split('T')[0];
-            if (patientMap.has(appointment.patientId) && appointment.date > today && appointment.status === "scheduled") {
-              const patient = patientMap.get(appointment.patientId);
-              if (!patient.nextAppointment || appointment.date < patient.nextAppointment) {
-                patient.nextAppointment = appointment.date;
+            } else {
+              const patientRecord = patientMap.get(patientId);
+              
+              // Add appointment to patient's appointment history
+              patientRecord.appointments = [...patientRecord.appointments, appointment];
+              
+              const today = new Date().toISOString().split('T')[0];
+              if (appointment.date > today && appointment.status === "scheduled") {
+                if (!patientRecord.nextAppointment || appointment.date < patientRecord.nextAppointment) {
+                  patientRecord.nextAppointment = appointment.date;
+                }
               }
-            }
-            
-            // Update last visit date
-            if (patientMap.has(appointment.patientId) && appointment.status === "completed") {
-              const patient = patientMap.get(appointment.patientId);
-              if (!patient.lastVisit || appointment.date > patient.lastVisit) {
-                patient.lastVisit = appointment.date;
+              
+              if (appointment.status === "completed") {
+                if (!patientRecord.lastVisit || appointment.date > patientRecord.lastVisit) {
+                  patientRecord.lastVisit = appointment.date;
+                }
               }
             }
           });
           
-          // Convert map to array
           const patientList = Array.from(patientMap.values());
+          console.log("Extracted patient list:", patientList);
           setPatients(patientList);
         }
       } catch (error) {
@@ -217,19 +248,17 @@ const DentistDashboard = () => {
         setPatients([]);
       }
 
-      // Fetch schedule - fixing the endpoint path to match backend controller
+      // Rest of the function remains the same
       try {
         if (currentDentist?._id || currentDentist?.id) {
-          // Use the MongoDB _id or fallback to id property
           const dentistId = currentDentist._id || currentDentist.id;
           console.log("Fetching schedule for dentist ID:", dentistId);
           
           try {
-            const scheduleResponse = await api.get(`/schedules/dentist/${dentistId}`);
+            const scheduleResponse = await scheduleAPI.getDentistSchedule(dentistId);
             setSchedule(scheduleResponse.data || {});
           } catch (scheduleError) {
             console.log("Schedule not found, creating an empty schedule structure");
-            // When no schedule exists yet, create empty structure for the UI to work with
             const emptySchedule = {};
             weekdays.forEach(day => {
               emptySchedule[day] = [];
@@ -250,6 +279,49 @@ const DentistDashboard = () => {
       toast.error("Failed to load data. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  // Helper functions for processi ng appointment data
+  const getPatientName = (appointment) => {
+    // Try to get patient name from all possible sources
+    if (appointment.patientName) {
+      return appointment.patientName;
+    }
+    
+    const patient = appointment.patient || {};
+    if (patient.name) {
+      return patient.name;
+    }
+    
+    // Try to construct from first name and last name
+    const firstName = patient.firstName || patient.first_name || "";
+    const lastName = patient.lastName || patient.last_name || "";
+    if (firstName || lastName) {
+      return `${firstName} ${lastName}`.trim();
+    }
+    
+    // Fallback
+    return "Unknown Patient";
+  };
+  
+  const formatDateIfNeeded = (dateString) => {
+    if (!dateString) {
+      return new Date().toISOString().split('T')[0]; // Today's date as fallback
+    }
+    
+    // Check if date is already in YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+      return dateString;
+    }
+    
+    try {
+      // Try to parse the date and format it
+      const date = new Date(dateString);
+      return date.toISOString().split('T')[0];
+    } catch (e) {
+      console.error("Error formatting date:", e);
+      return dateString; // Return original if parsing fails
     }
   };
 
@@ -309,11 +381,20 @@ const DentistDashboard = () => {
       const slot = schedule[day].find(s => s.id === slotId);
       if (!slot) return;
       
+      // Get dentist ID, ensuring we have a value
+      const dentistId = dentist?._id || dentist?.id;
+      
+      if (!dentistId) {
+        toast.error("Unable to update time slot: Missing dentist ID");
+        console.error("Cannot update time slot: Missing dentist ID", dentist);
+        return;
+      }
+      
       // Toggle the slot
       const updatedSlot = { ...slot, isAvailable: !slot.isAvailable };
       
       // Make API call to update the schedule
-      await api.put(`/schedules/dentist/${dentist?.id}`, {
+      await scheduleAPI.updateSchedule(dentistId, {
         day,
         slotId,
         isAvailable: updatedSlot.isAvailable
@@ -339,27 +420,31 @@ const DentistDashboard = () => {
     }
 
     try {
+      // Get dentist ID, using both possible ID field names and showing error if missing
+      const dentistId = dentist?._id || dentist?.id;
+      
+      if (!dentistId) {
+        toast.error("Unable to add time slot: Missing dentist ID");
+        console.error("Cannot add time slot: Missing dentist ID", dentist);
+        return;
+      }
+
       // Create the new time slot object with dentist ID
       const timeSlotToAdd = {
         ...newTimeSlot,
-        dentistId: dentist?.id
+        day: newTimeSlot.day.toLowerCase() // Make sure day is lowercase to match backend expectations
       };
       
-      // Make API call to add the time slot - using the correct endpoint path
-      const response = await api.post(`/schedules/dentist/${dentist?.id}`, timeSlotToAdd);
-      const addedSlot = response.data;
+      // Make API call to add the time slot using the scheduleAPI
+      const response = await scheduleAPI.addTimeSlot(dentistId, timeSlotToAdd);
       
-      // Update local state
-      setSchedule(prevSchedule => {
-        // Create an array for this day if it doesn't exist yet
-        const daySlots = prevSchedule[newTimeSlot.day] || [];
-        
-        // Add the new slot
-        return {
-          ...prevSchedule,
-          [newTimeSlot.day]: [...daySlots, addedSlot]
-        };
-      });
+      // Use the complete formatted schedule returned by backend to update our state
+      if (response.data) {
+        // Extract the added slot from the response
+        const day = newTimeSlot.day;
+        setSchedule(response.data);
+        console.log("Updated schedule with new time slot:", response.data);
+      }
       
       // Reset form and close dialog
       setNewTimeSlot({
@@ -371,6 +456,19 @@ const DentistDashboard = () => {
       setIsTimeSlotDialogOpen(false);
       
       toast.success("Time slot added successfully");
+      
+      // Force refresh of schedule data to ensure we have the latest
+      const dentistId2 = dentist?._id || dentist?.id;
+      if (dentistId2) {
+        try {
+          const scheduleResponse = await scheduleAPI.getDentistSchedule(dentistId2);
+          if (scheduleResponse.data) {
+            setSchedule(scheduleResponse.data);
+          }
+        } catch (error) {
+          console.error("Error refreshing schedule:", error);
+        }
+      }
     } catch (error) {
       console.error("Error adding time slot:", error);
       toast.error("Failed to add time slot");
@@ -379,8 +477,26 @@ const DentistDashboard = () => {
 
   const deleteTimeSlot = async (day: string, slotId: number) => {
     try {
-      // Make API call to delete the time slot using the correct endpoint
-      await api.delete(`/schedules/dentist/${dentist?.id}/${slotId}`);
+      // Check if slot ID exists
+      if (!slotId) {
+        console.error("Cannot delete time slot: Invalid slot ID", slotId);
+        toast.error("Failed to remove time slot: Invalid time slot ID");
+        return;
+      }
+
+      console.log(`Attempting to delete time slot: day=${day}, slotId=${slotId}`);
+      
+      // Get dentist ID, ensuring we have a value
+      const dentistId = dentist?._id || dentist?.id;
+      
+      if (!dentistId) {
+        toast.error("Unable to delete time slot: Missing dentist ID");
+        console.error("Cannot delete time slot: Missing dentist ID", dentist);
+        return;
+      }
+      
+      // Make API call to delete the time slot using the scheduleAPI
+      await scheduleAPI.deleteTimeSlot(dentistId, slotId, day);
       
       // Update local state by removing the time slot
       setSchedule((prevSchedule) => ({

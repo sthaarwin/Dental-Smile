@@ -18,6 +18,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
+import { FormattedAppointment } from './interfaces/formatted-appointment.interface';
+import { Appointment } from './schemas/appointment.schema';
 
 @Controller('appointments')
 @UseGuards(JwtAuthGuard)
@@ -25,14 +27,14 @@ export class AppointmentsController {
   constructor(private readonly appointmentsService: AppointmentsService) {}
 
   @Post()
-  async create(@Body() createAppointmentDto: CreateAppointmentDto, @Request() req) {
+  async create(@Body() createAppointmentDto: CreateAppointmentDto, @Request() req): Promise<Appointment> {
     return this.appointmentsService.create(createAppointmentDto);
   }
 
   @Get()
   @UseGuards(RolesGuard)
   @Roles('admin', 'dentist')
-  async findAll(@Query() query: any) {
+  async findAll(@Query() query: any): Promise<FormattedAppointment[]> {
     // Handle filtering by date if provided
     if (query.date) {
       try {
@@ -58,7 +60,7 @@ export class AppointmentsController {
   }
 
   @Get('my-appointments')
-  async getMyAppointments(@Request() req) {
+  async getMyAppointments(@Request() req): Promise<FormattedAppointment[]> {
     const userId = req.user.userId;
     return this.appointmentsService.findByPatient(userId);
   }
@@ -66,7 +68,7 @@ export class AppointmentsController {
   @Get('dentist/:dentistId')
   @UseGuards(RolesGuard)
   @Roles('admin', 'dentist')
-  async getAppointmentsByDentist(@Param('dentistId') dentistId: string, @Request() req) {
+  async getAppointmentsByDentist(@Param('dentistId') dentistId: string, @Request() req): Promise<FormattedAppointment[]> {
     // Optional: Check permission if it's not the dentist's own appointments
     if (req.user.role !== 'admin' && req.user.userId !== dentistId) {
       throw new BadRequestException('You can only view your own appointments');
@@ -78,13 +80,13 @@ export class AppointmentsController {
   @Get('dentist-schedule')
   @UseGuards(RolesGuard)
   @Roles('admin', 'dentist')
-  async getDentistSchedule(@Request() req) {
+  async getDentistSchedule(@Request() req): Promise<FormattedAppointment[]> {
     const userId = req.user.userId;
     return this.appointmentsService.findByDentist(userId);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string): Promise<FormattedAppointment> {
     return this.appointmentsService.findOne(id);
   }
 
@@ -93,7 +95,7 @@ export class AppointmentsController {
     @Param('id') id: string, 
     @Body() updateAppointmentDto: UpdateAppointmentDto,
     @Request() req
-  ) {
+  ): Promise<Appointment> {
     // Additional validation could be added here
     return this.appointmentsService.update(id, updateAppointmentDto);
   }
@@ -104,7 +106,7 @@ export class AppointmentsController {
   async updateStatus(
     @Param('id') id: string,
     @Body('status') status: string
-  ) {
+  ): Promise<Appointment> {
     if (!['scheduled', 'completed', 'cancelled', 'no-show'].includes(status)) {
       throw new BadRequestException('Invalid status value');
     }
@@ -115,7 +117,7 @@ export class AppointmentsController {
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles('admin')
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id') id: string): Promise<Appointment> {
     return this.appointmentsService.remove(id);
   }
 }

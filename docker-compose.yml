@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   frontend:
     build:
@@ -25,7 +23,7 @@ services:
     image: mongo:6.0
     container_name: dental_mongodb  
     ports:
-      - "27018:27017"  
+      - "27017:27017"  
     volumes:
       - mongo_data:/data/db
 

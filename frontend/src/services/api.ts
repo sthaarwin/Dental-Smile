@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-// Create axios instance with base configuration
 const api = axios.create({
   baseURL,
   headers: {
@@ -21,7 +20,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -68,13 +67,39 @@ export const appointmentAPI = {
   cancelAppointment: (id: number | string) => 
     api.delete(`/appointments/${id}/`),
   updateAppointmentStatus: (id: number | string, status: string) => {
-    // Check if id is defined before making API call
     if (!id) {
       console.error("Cannot update appointment status: appointment ID is undefined");
       return Promise.reject(new Error("Appointment ID is undefined"));
     }
-    return api.put(`/appointments/${id}/status`, { status });
+    return api.patch(`/appointments/${id}/status`, { status });
   },
+};
+
+export const scheduleAPI = {
+  getDentistSchedule: (dentistId: string) => 
+    api.get(`/schedules/dentist/${dentistId}`),
+  
+  updateSchedule: (dentistId: string, scheduleData: any) => 
+    api.put(`/schedules/dentist/${dentistId}`, scheduleData),
+    
+  addTimeSlot: (dentistId: string, timeSlotData: any) => 
+    api.post(`/schedules/dentist/${dentistId}`, timeSlotData),
+    
+  deleteTimeSlot: (dentistId: string, slotId: number, day: string) => 
+    api.delete(`/schedules/dentist/${dentistId}/${slotId}`, {
+      data: { day: day.toLowerCase() }
+    }),
+    
+  addDayOff: (dentistId: string, dateStr: string) =>
+    api.post(`/schedules/dentist/${dentistId}/day-off`, { date: dateStr }),
+    
+  removeDayOff: (dentistId: string, dateStr: string) =>
+    api.post(`/schedules/dentist/${dentistId}/remove-day-off`, { date: dateStr }),
+    
+  checkAvailability: (dentistId: string, date: string, startTime: string, endTime: string) =>
+    api.get('/schedules/availability', { 
+      params: { dentistId, date, startTime, endTime } 
+    }),
 };
 
 export const dentistAPI = {
@@ -149,7 +174,7 @@ export const userAPI = {
   updatePassword: (passwords: { currentPassword: string; newPassword: string }) => 
     api.put('/users/update-password', passwords),
   uploadProfilePicture: (formData: FormData) => 
-    api.post('/users/upload-profile-picture', formData, {
+    api.post('/auth/upload-profile-picture', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Appointment, AppointmentDocument } from './schemas/appointment.schema';
+import { FormattedAppointment } from './interfaces/formatted-appointment.interface';
 
 @Injectable()
 export class AppointmentsService {
@@ -26,16 +27,34 @@ export class AppointmentsService {
     return newAppointment.save();
   }
 
-  async findAll(query = {}): Promise<Appointment[]> {
-    return this.appointmentModel
+  async findAll(query = {}): Promise<FormattedAppointment[]> {
+    const appointments = await this.appointmentModel
       .find(query)
       .populate('patient', '-password')
       .populate('dentist', '-password')
       .sort({ date: 1, startTime: 1 })
       .exec();
+      
+    // Format appointments to ensure consistent data structure
+    return appointments.map(appointment => {
+      const formattedAppointment = appointment.toObject() as FormattedAppointment;
+      
+      // Add patientName field for easier access
+      if (formattedAppointment.patient) {
+        const patient = formattedAppointment.patient as any;
+        formattedAppointment.patientName = patient.name || '';
+      }
+      
+      // Format date to YYYY-MM-DD string if it's a Date object
+      if (formattedAppointment.date instanceof Date) {
+        formattedAppointment.date = formattedAppointment.date.toISOString().split('T')[0];
+      }
+      
+      return formattedAppointment;
+    });
   }
 
-  async findOne(id: string): Promise<Appointment> {
+  async findOne(id: string): Promise<FormattedAppointment> {
     const appointment = await this.appointmentModel
       .findById(id)
       .populate('patient', '-password')
@@ -45,19 +64,79 @@ export class AppointmentsService {
     if (!appointment) {
       throw new NotFoundException(`Appointment with ID ${id} not found`);
     }
-
-    return appointment;
+    
+    // Format appointment to ensure consistent data structure
+    const formattedAppointment = appointment.toObject() as FormattedAppointment;
+    
+    // Add patientName field for easier access
+    if (formattedAppointment.patient) {
+      const patient = formattedAppointment.patient as any;
+      formattedAppointment.patientName = patient.name || '';
+    }
+    
+    // Format date to YYYY-MM-DD string if it's a Date object
+    if (formattedAppointment.date instanceof Date) {
+      formattedAppointment.date = formattedAppointment.date.toISOString().split('T')[0];
+    }
+    
+    return formattedAppointment;
   }
 
-  async findByPatient(patientId: string): Promise<Appointment[]> {
-    return this.findAll({ patient: patientId });
+  async findByPatient(patientId: string): Promise<FormattedAppointment[]> {
+    const appointments = await this.appointmentModel
+      .find({ patient: patientId })
+      .populate('patient', '-password')
+      .populate('dentist', '-password')
+      .sort({ date: 1, startTime: 1 })
+      .exec();
+      
+    // Format appointments to ensure consistent data structure
+    return appointments.map(appointment => {
+      const formattedAppointment = appointment.toObject() as FormattedAppointment;
+      
+      // Add patientName field for easier access
+      if (formattedAppointment.patient) {
+        const patient = formattedAppointment.patient as any;
+        formattedAppointment.patientName = patient.name || '';
+      }
+      
+      // Format date to YYYY-MM-DD string if it's a Date object
+      if (formattedAppointment.date instanceof Date) {
+        formattedAppointment.date = formattedAppointment.date.toISOString().split('T')[0];
+      }
+      
+      return formattedAppointment;
+    });
   }
 
-  async findByDentist(dentistId: string): Promise<Appointment[]> {
-    return this.findAll({ dentist: dentistId });
+  async findByDentist(dentistId: string): Promise<FormattedAppointment[]> {
+    const appointments = await this.appointmentModel
+      .find({ dentist: dentistId })
+      .populate('patient', '-password')
+      .populate('dentist', '-password')
+      .sort({ date: 1, startTime: 1 })
+      .exec();
+      
+    // Format appointments to ensure consistent data structure
+    return appointments.map(appointment => {
+      const formattedAppointment = appointment.toObject() as FormattedAppointment;
+      
+      // Add patientName field for easier access
+      if (formattedAppointment.patient) {
+        const patient = formattedAppointment.patient as any;
+        formattedAppointment.patientName = patient.name || '';
+      }
+      
+      // Format date to YYYY-MM-DD string if it's a Date object
+      if (formattedAppointment.date instanceof Date) {
+        formattedAppointment.date = formattedAppointment.date.toISOString().split('T')[0];
+      }
+      
+      return formattedAppointment;
+    });
   }
 
-  async findByDate(date: Date): Promise<Appointment[]> {
+  async findByDate(date: Date): Promise<FormattedAppointment[]> {
     // Get appointments for the entire day
     const startDate = new Date(date);
     startDate.setHours(0, 0, 0, 0);
@@ -65,11 +144,32 @@ export class AppointmentsService {
     const endDate = new Date(date);
     endDate.setHours(23, 59, 59, 999);
     
-    return this.findAll({
-      date: {
-        $gte: startDate,
-        $lte: endDate
+    const appointments = await this.appointmentModel
+      .find({
+        date: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      })
+      .populate('patient', '-password')
+      .populate('dentist', '-password')
+      .sort({ startTime: 1 })
+      .exec();
+    
+    return appointments.map(appointment => {
+      const formattedAppointment = appointment.toObject() as FormattedAppointment;
+      
+      if (formattedAppointment.patient) {
+        const patient = formattedAppointment.patient as any;
+        formattedAppointment.patientName = patient.name || '';
       }
+      
+      // Format date to YYYY-MM-DD string if it's a Date object
+      if (formattedAppointment.date instanceof Date) {
+        formattedAppointment.date = formattedAppointment.date.toISOString().split('T')[0];
+      }
+      
+      return formattedAppointment;
     });
   }
 
@@ -123,15 +223,15 @@ export class AppointmentsService {
 
   private async checkForConflicts(
     dentistId: string,
-    date: Date,
+    date: Date | string,
     startTime: string,
     endTime: string,
     excludeAppointmentId?: string
   ): Promise<boolean> {
-    const dateObj = new Date(date);
+    // Ensure we have a proper Date object
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
     dateObj.setHours(0, 0, 0, 0);
 
-    // Build query to check for overlapping appointments
     const query: any = {
       dentist: dentistId,
       date: dateObj,
@@ -154,7 +254,6 @@ export class AppointmentsService {
       ]
     };
 
-    // Exclude current appointment if we're updating
     if (excludeAppointmentId) {
       query._id = { $ne: excludeAppointmentId };
     }

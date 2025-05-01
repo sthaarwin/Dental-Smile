@@ -9,6 +9,7 @@ import { CommonServicesModule } from './common/services/common-services.module';
 import { ServicesModule } from './services/services.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { DentistsModule } from './dentists/dentists.module';
+import { SchedulesModule } from './schedules/schedules.module';
 
 @Module({
   imports: [
@@ -22,7 +23,7 @@ import { DentistsModule } from './dentists/dentists.module';
     }),
     MongooseModule.forRootAsync({
       useFactory: () => ({
-        uri: process.env.MONGODB_URI,
+        uri: process.env.MONGO_URI || process.env.MONGODB_URI,
       }),
     }),
     CommonServicesModule,
@@ -31,6 +32,7 @@ import { DentistsModule } from './dentists/dentists.module';
     ServicesModule,
     AppointmentsModule,
     DentistsModule,
+    SchedulesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

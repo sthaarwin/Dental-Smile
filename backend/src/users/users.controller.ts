@@ -53,6 +53,21 @@ export class UsersController {
       throw error;
     }
   }
+  
+  @Put('profile')
+  async updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+    this.logger.log(`Updating profile for user: ${req.user.userId}`);
+    try {
+      const updatedUser = await this.usersService.update(req.user.userId, updateUserDto);
+      // Remove password from response
+      const userObj = (updatedUser as any).toObject ? (updatedUser as any).toObject() : updatedUser;
+      const { password, ...result } = userObj;
+      return result;
+    } catch (error) {
+      this.logger.error(`Error updating user profile: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
  
   // The update-to-dentist route is now defined BEFORE the parameterized routes
   // This ensures NestJS correctly matches this route

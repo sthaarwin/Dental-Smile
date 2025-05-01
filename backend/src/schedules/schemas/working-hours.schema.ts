@@ -5,6 +5,21 @@ import { User } from '../../users/schemas/user.schema';
 export type WorkingHoursDocument = WorkingHours & Document;
 
 @Schema()
+export class TimeSlot {
+  @Prop({ default: () => new Date().getTime() }) 
+  id: number;
+
+  @Prop({ required: true })
+  startTime: string;
+
+  @Prop({ required: true })
+  endTime: string;
+
+  @Prop({ default: true })
+  isAvailable: boolean;
+}
+
+@Schema()
 export class DailyHours {
   @Prop({ required: true })
   isWorking: boolean;
@@ -50,6 +65,28 @@ export class WorkingHours {
 
   @Prop({ type: [Date] })
   daysOff: Date[];
+
+  // Add time slots for each day of the week
+  @Prop({ type: [TimeSlot], default: [] })
+  mondaySlots: TimeSlot[];
+
+  @Prop({ type: [TimeSlot], default: [] })
+  tuesdaySlots: TimeSlot[];
+
+  @Prop({ type: [TimeSlot], default: [] })
+  wednesdaySlots: TimeSlot[];
+
+  @Prop({ type: [TimeSlot], default: [] })
+  thursdaySlots: TimeSlot[];
+
+  @Prop({ type: [TimeSlot], default: [] })
+  fridaySlots: TimeSlot[];
+
+  @Prop({ type: [TimeSlot], default: [] })
+  saturdaySlots: TimeSlot[];
+
+  @Prop({ type: [TimeSlot], default: [] })
+  sundaySlots: TimeSlot[];
 
   // Define as optional method that will be implemented by Mongoose
   toObject?(): Record<string, any>;
