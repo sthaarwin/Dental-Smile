@@ -73,6 +73,8 @@ interface Patient {
   lastVisit?: string;
   nextAppointment?: string;
   appointments: Appointment[];
+  profile_picture?: string;
+  profilePicture?: string;
 }
 
 const PatientDetail = () => {
@@ -115,16 +117,18 @@ const PatientDetail = () => {
 
     setIsLoading(true);
     try {
-      // First fetch basic patient data
-      const response = await api.get(`/users/${patientId}`);
+      // Fetch basic patient data using the dentist-specific patient endpoint
+      const response = await api.get(`/users/patients/${patientId}`);
       if (!response.data) {
         throw new Error("Failed to get patient data");
       }
 
       const userData = response.data;
       
-      // Then fetch all appointments for this patient
-      const appointmentsResponse = await api.get(`/appointments/patient/${patientId}`);
+      // Then fetch all appointments for this patient using the query parameter
+      const appointmentsResponse = await api.get(`/appointments`, {
+        params: { patient: patientId }
+      });
       const appointments = Array.isArray(appointmentsResponse.data) ? appointmentsResponse.data : [];
       
       // Process and sort appointments by date
@@ -150,7 +154,9 @@ const PatientDetail = () => {
         phone: userData.phone_number || "",
         lastVisit: getLastVisitDate(processedAppointments),
         nextAppointment: getNextAppointmentDate(processedAppointments),
-        appointments: processedAppointments
+        appointments: processedAppointments,
+        profile_picture: userData.profile_picture,
+        profilePicture: userData.profilePicture
       });
 
     } catch (error) {
@@ -328,7 +334,17 @@ const PatientDetail = () => {
                 <CardContent className="space-y-4 pt-4">
                   <div className="flex items-center">
                     <Avatar className="h-16 w-16 mr-4">
-                      <AvatarFallback>{patient.name[0]}</AvatarFallback>
+                      {patient.profile_picture || patient.profilePicture ? (
+                        <AvatarImage 
+                          src={patient.profile_picture || patient.profilePicture} 
+                          alt={patient.name} 
+                          className="object-cover" 
+                        />
+                      ) : (
+                        <AvatarFallback className="bg-dentist-100 text-dentist-600">
+                          {patient.name[0]}
+                        </AvatarFallback>
+                      )}
                     </Avatar>
                     <div>
                       <h2 className="text-xl font-semibold">{patient.name}</h2>
@@ -359,11 +375,6 @@ const PatientDetail = () => {
                     )}
                   </div>
                 </CardContent>
-                <CardFooter className="bg-gray-50 border-t">
-                  <Button className="w-full" onClick={() => navigate(`/book?patientId=${patient.id}`)}>
-                    Schedule New Appointment
-                  </Button>
-                </CardFooter>
               </Card>
 
               {patient.nextAppointment && (
@@ -402,55 +413,69 @@ const PatientDetail = () => {
 
                 <TabsContent value="upcoming">
                   <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle>Upcoming Appointments</CardTitle>
-                      <CardDescription>
-                        Scheduled appointments for this patient
-                      </CardDescription>
+                    <CardHeader className="pb-2 flex flex-row justify-between items-center">
+                      <div>
+                        <CardTitle>Upcoming Appointments</CardTitle>
+                        <div className="mt-1.5">
+                          <CardDescription>
+                            Scheduled appointments for this patient
+                          </CardDescription>
+                        </div>
+                      </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Time</TableHead>
-                            <TableHead>Service</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {upcomingAppointments.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center py-4">
-                                No upcoming appointments
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            upcomingAppointments.map((appointment) => (
-                              <TableRow key={appointment.id}>
-                                <TableCell>
-                                  {new Date(appointment.date).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell>{appointment.time}</TableCell>
-                                <TableCell>{appointment.service}</TableCell>
-                                <TableCell>
-                                  {renderAppointmentStatus(appointment.status)}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleAppointmentClick(appointment)}
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
+                      {upcomingAppointments.length === 0 ? (
+                        <div className="py-8 text-center">
+                          <Calendar className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                          <p className="text-gray-500 font-medium">No upcoming appointments</p>
+                          <p className="text-gray-400 text-sm mt-1">This patient doesn't have any scheduled appointments</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {upcomingAppointments.map((appointment) => (
+                            <div key={appointment.id} className="p-4 hover:bg-gray-50 transition-colors">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-grow">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="bg-blue-50 p-2 rounded-full">
+                                      <Calendar className="h-5 w-5 text-blue-600" />
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-gray-900">
+                                        {new Date(appointment.date).toLocaleDateString('en-US', {
+                                          weekday: 'long',
+                                          month: 'short',
+                                          day: 'numeric',
+                                          year: 'numeric'
+                                        })}
+                                      </div>
+                                      <div className="text-sm text-gray-500 flex items-center mt-1">
+                                        <Clock className="h-3.5 w-3.5 mr-1 text-gray-400" />
+                                        {appointment.time}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 ml-9">
+                                    <div className="text-gray-800">{appointment.service}</div>
+                                    <div className="mt-2">
+                                      {renderAppointmentStatus(appointment.status)}
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleAppointmentClick(appointment)}
+                                  className="flex items-center ml-2"
+                                >
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Details
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -459,53 +484,79 @@ const PatientDetail = () => {
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle>Past Appointments</CardTitle>
-                      <CardDescription>
-                        Appointment history for this patient
-                      </CardDescription>
+                      <div className="mt-1.5">
+                        <CardDescription>
+                          Appointment history for this patient
+                        </CardDescription>
+                      </div>
                     </CardHeader>
                     <CardContent className="p-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Time</TableHead>
-                            <TableHead>Service</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {pastAppointments.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center py-4">
-                                No past appointments
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            pastAppointments.map((appointment) => (
-                              <TableRow key={appointment.id}>
-                                <TableCell>
-                                  {new Date(appointment.date).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell>{appointment.time}</TableCell>
-                                <TableCell>{appointment.service}</TableCell>
-                                <TableCell>
-                                  {renderAppointmentStatus(appointment.status)}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleAppointmentClick(appointment)}
-                                  >
-                                    <FileText className="h-4 w-4" />
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          )}
-                        </TableBody>
-                      </Table>
+                      {pastAppointments.length === 0 ? (
+                        <div className="py-8 text-center">
+                          <CalendarDays className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+                          <p className="text-gray-500 font-medium">No past appointments</p>
+                          <p className="text-gray-400 text-sm mt-1">This patient doesn't have any appointment history</p>
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {pastAppointments.map((appointment) => (
+                            <div key={appointment.id} className="p-4 hover:bg-gray-50 transition-colors">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-grow">
+                                  <div className="flex items-center space-x-2">
+                                    <div className={`p-2 rounded-full ${
+                                      appointment.status === "completed" 
+                                        ? "bg-green-50" 
+                                        : appointment.status === "cancelled"
+                                          ? "bg-red-50"
+                                          : "bg-yellow-50"
+                                    }`}>
+                                      {appointment.status === "completed" && (
+                                        <CheckCircle className="h-5 w-5 text-green-600" />
+                                      )}
+                                      {appointment.status === "cancelled" && (
+                                        <XCircle className="h-5 w-5 text-red-600" />
+                                      )}
+                                      {appointment.status === "no-show" && (
+                                        <AlertCircle className="h-5 w-5 text-yellow-600" />
+                                      )}
+                                    </div>
+                                    <div>
+                                      <div className="font-medium text-gray-900">
+                                        {new Date(appointment.date).toLocaleDateString('en-US', {
+                                          weekday: 'long',
+                                          month: 'short',
+                                          day: 'numeric',
+                                          year: 'numeric'
+                                        })}
+                                      </div>
+                                      <div className="text-sm text-gray-500 flex items-center mt-1">
+                                        <Clock className="h-3.5 w-3.5 mr-1 text-gray-400" />
+                                        {appointment.time}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="mt-3 ml-9">
+                                    <div className="text-gray-800">{appointment.service}</div>
+                                    <div className="mt-2">
+                                      {renderAppointmentStatus(appointment.status)}
+                                    </div>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleAppointmentClick(appointment)}
+                                  className="flex items-center ml-2"
+                                >
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Details
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>

@@ -85,6 +85,17 @@ export const scheduleAPI = {
   addTimeSlot: (dentistId: string, timeSlotData: any) => 
     api.post(`/schedules/dentist/${dentistId}`, timeSlotData),
     
+  updateTimeSlot: (dentistId: string, timeSlotData: any) => {
+    const { id, day, startTime, endTime, isAvailable } = timeSlotData;
+    return api.put(`/schedules/dentist/${dentistId}/time-slot`, {
+      id,
+      day: day.toLowerCase(),
+      startTime,
+      endTime,
+      isAvailable
+    });
+  },
+    
   deleteTimeSlot: (dentistId: string, slotId: number, day: string) => 
     api.delete(`/schedules/dentist/${dentistId}/${slotId}`, {
       data: { day: day.toLowerCase() }

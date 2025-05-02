@@ -152,4 +152,19 @@ export class SchedulesController {
     
     return this.schedulesService.deleteTimeSlot(id, slotId, data?.day);
   }
+
+  @Put('dentist/:id/time-slot')
+  @UseGuards(RolesGuard)
+  @Roles('admin', 'dentist')
+  async updateTimeSlot(
+    @Param('id') id: string,
+    @Body() timeSlotData: any,
+    @Request() req
+  ) {
+    if (req.user.role === 'dentist' && req.user.userId !== id) {
+      throw new BadRequestException('You can only modify your own schedule');
+    }
+    
+    return this.schedulesService.updateTimeSlot(id, timeSlotData);
+  }
 }
