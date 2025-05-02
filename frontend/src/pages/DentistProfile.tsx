@@ -451,8 +451,7 @@ const DentistProfile = () => {
           </div>
         </div>
       </div>
-      
-      <Footer />
+
     </div>
   );
 };

@@ -44,12 +44,26 @@ import { toast } from "sonner";
 import { appointmentAPI } from '@/services/api';
 
 interface Appointment {
-  id: number;
+  id: string | number;
+  _id?: string;
   date: string;
   time: string;
-  dentistName: string;
+  startTime?: string;
+  dentistName?: string;
+  dentist?: {
+    name?: string;
+    _id?: string;
+    id?: string;
+  };
+  patientName?: string;
+  patient?: {
+    name?: string;
+    _id?: string;
+    id?: string;
+  };
   service: string;
-  status: "upcoming" | "completed" | "cancelled";
+  status: string;
+  notes?: string;
 }
 
 const timeSlots = [
@@ -57,6 +71,59 @@ const timeSlots = [
   "11:00 AM", "11:30 AM", "2:00 PM", "2:30 PM",
   "3:00 PM", "3:30 PM", "4:00 PM", "4:30 PM"
 ];
+
+// Function to process received appointments
+const processAppointments = (appointmentsData: any[]): Appointment[] => {
+  if (!Array.isArray(appointmentsData)) return [];
+  
+  return appointmentsData.map(appointment => ({
+    id: appointment._id || appointment.id,
+    _id: appointment._id || appointment.id,
+    date: formatDateIfNeeded(appointment.date),
+    time: appointment.startTime || appointment.time || "Not specified",
+    startTime: appointment.startTime,
+    dentistName: getDentistName(appointment),
+    dentist: appointment.dentist,
+    service: appointment.service || "General Appointment",
+    status: appointment.status || "scheduled",
+    notes: appointment.notes || ""
+  }));
+};
+
+// Helper function to get dentist name from appointment
+const getDentistName = (appointment): string => {
+  if (appointment.dentistName) {
+    return appointment.dentistName;
+  }
+  
+  const dentist = appointment.dentist || {};
+  if (dentist.name) {
+    return dentist.name;
+  }
+  
+  return "Unknown Dentist";
+};
+
+// Helper function to format dates consistently
+const formatDateIfNeeded = (dateString): string => {
+  if (!dateString) {
+    return new Date().toISOString().split('T')[0]; // Today's date as fallback
+  }
+  
+  // Check if date is already in YYYY-MM-DD format
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+    return dateString;
+  }
+  
+  try {
+    // Try to parse the date and format it
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+  } catch (e) {
+    console.error("Error formatting date:", e);
+    return dateString; // Return original if parsing fails
+  }
+};
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -91,7 +158,9 @@ const Dashboard = () => {
     const fetchData = async () => {
       try { 
         const appointmentsResponse = await appointmentAPI.myAppointments();
-        setAppointments(appointmentsResponse.data);
+        const processedAppointments = processAppointments(appointmentsResponse.data);
+        setAppointments(processedAppointments);
+        console.log("Processed appointments:", processedAppointments);
       } catch (error) {
         console.error("Error loading appointments:", error);
         toast.error('Failed to load appointments');
@@ -127,7 +196,8 @@ const Dashboard = () => {
       });
  
       const updatedAppointments = await appointmentAPI.myAppointments();
-      setAppointments(updatedAppointments.data);
+      const processedAppointments = processAppointments(updatedAppointments.data);
+      setAppointments(processedAppointments);
       
       toast.success("Appointment rescheduled successfully");
       setIsRescheduleDialogOpen(false);
@@ -151,7 +221,8 @@ const Dashboard = () => {
       await appointmentAPI.cancelAppointment(selectedAppointment.id);
        
       const updatedAppointments = await appointmentAPI.myAppointments();
-      setAppointments(updatedAppointments.data);
+      const processedAppointments = processAppointments(updatedAppointments.data);
+      setAppointments(processedAppointments);
       
       toast.success("Appointment cancelled successfully");
       setIsCancelDialogOpen(false);
@@ -161,13 +232,35 @@ const Dashboard = () => {
     }
   };
 
-  const upcomingAppointments = appointments.filter(
-    (apt) => apt.status === "upcoming"
-  );
+  // Improved filtering for upcoming and past appointments
+  const upcomingAppointments = appointments.filter(apt => {
+    // Consider scheduled appointments as upcoming
+    if (apt.status === "scheduled" || apt.status === "upcoming") {
+      // Also check if the date is in the future
+      const appointmentDate = new Date(apt.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time to start of day for proper comparison
+      return appointmentDate >= today;
+    }
+    return false;
+  });
 
-  const pastAppointments = appointments.filter(
-    (apt) => apt.status === "completed"
-  );
+  const pastAppointments = appointments.filter(apt => {
+    // Consider completed or past appointments
+    if (apt.status === "completed" || apt.status === "cancelled" || apt.status === "no-show") {
+      return true;
+    }
+    
+    // Also include scheduled appointments that are in the past
+    if (apt.status === "scheduled") {
+      const appointmentDate = new Date(apt.date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time to start of day for proper comparison
+      return appointmentDate < today;
+    }
+    
+    return false;
+  });
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
