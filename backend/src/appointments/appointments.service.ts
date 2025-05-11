@@ -173,6 +173,37 @@ export class AppointmentsService {
     });
   }
 
+  async findByDateAndDentist(date: Date, dentistId: string): Promise<FormattedAppointment[]> {
+    // Get appointments for a specific date and dentist
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(date);
+    endDate.setHours(23, 59, 59, 999);
+    
+    const appointments = await this.appointmentModel
+      .find({
+        dentist: dentistId,
+        date: {
+          $gte: startDate,
+          $lte: endDate
+        }
+      })
+      .sort({ startTime: 1 })
+      .exec();
+    
+    return appointments.map(appointment => {
+      const formattedAppointment = appointment.toObject() as FormattedAppointment;
+      
+      // Format date to YYYY-MM-DD string if it's a Date object
+      if (formattedAppointment.date instanceof Date) {
+        formattedAppointment.date = formattedAppointment.date.toISOString().split('T')[0];
+      }
+      
+      return formattedAppointment;
+    });
+  }
+
   async update(id: string, updateAppointmentDto: any): Promise<Appointment> {
     // Check if appointment time is being updated
     if (updateAppointmentDto.date || updateAppointmentDto.startTime || updateAppointmentDto.endTime) {
@@ -228,37 +259,76 @@ export class AppointmentsService {
     endTime: string,
     excludeAppointmentId?: string
   ): Promise<boolean> {
-    // Ensure we have a proper Date object
-    const dateObj = typeof date === 'string' ? new Date(date) : date;
-    dateObj.setHours(0, 0, 0, 0);
+    // Parse the date correctly, ensuring we're working with a consistent date format
+    const dateString = typeof date === 'string' ? date : date.toISOString().split('T')[0];
+    const dateObj = new Date(dateString);
+    dateObj.setUTCHours(0, 0, 0, 0);
+    
+    console.log(`Checking conflicts for dentist ${dentistId} on ${dateString}`);
+    console.log(`Time slot: ${startTime} - ${endTime}`);
 
-    const query: any = {
-      dentist: dentistId,
-      date: dateObj,
-      $or: [
-        // New appointment starts during an existing appointment
-        {
-          startTime: { $lte: startTime },
-          endTime: { $gt: startTime }
-        },
-        // New appointment ends during an existing appointment
-        {
-          startTime: { $lt: endTime },
-          endTime: { $gte: endTime }
-        },
-        // New appointment encompasses an existing appointment
-        {
-          startTime: { $gte: startTime },
-          endTime: { $lte: endTime }
-        }
-      ]
+    // Calculate time in minutes for easier comparison
+    const getTimeInMinutes = (timeStr: string): number => {
+      const [timePart, period] = timeStr.split(' ');
+      const [hours, minutes] = timePart.split(':').map(Number);
+      
+      let totalMinutes = hours * 60 + minutes;
+      if (period.toUpperCase() === 'PM' && hours !== 12) {
+        totalMinutes += 12 * 60;
+      }
+      if (period.toUpperCase() === 'AM' && hours === 12) {
+        totalMinutes = minutes; // 12 AM is 0 hours
+      }
+      
+      return totalMinutes;
     };
 
+    const newStartMinutes = getTimeInMinutes(startTime);
+    const newEndMinutes = getTimeInMinutes(endTime);
+    
+    console.log(`New appointment time in minutes: ${newStartMinutes}-${newEndMinutes}`);
+    
+    // Find all appointments for this dentist on this date
+    const query = {
+      dentist: dentistId,
+      date: dateObj,
+      status: { $ne: 'cancelled' }, // Ignore cancelled appointments
+    };
+    
     if (excludeAppointmentId) {
-      query._id = { $ne: excludeAppointmentId };
+      Object.assign(query, { _id: { $ne: excludeAppointmentId } });
     }
-
-    const conflictingAppointments = await this.appointmentModel.find(query).exec();
-    return conflictingAppointments.length > 0;
+    
+    const existingAppointments = await this.appointmentModel.find(query).exec();
+    
+    console.log(`Found ${existingAppointments.length} existing appointments on this date`);
+    
+    // Check for conflicts by comparing time ranges
+    for (const appointment of existingAppointments) {
+      const existingStartMinutes = getTimeInMinutes(appointment.startTime);
+      const existingEndMinutes = getTimeInMinutes(appointment.endTime);
+      
+      console.log(`Existing appointment: ${appointment.startTime}-${appointment.endTime} (${existingStartMinutes}-${existingEndMinutes} minutes)`);
+      
+      // Check if time ranges overlap
+      const hasOverlap = (
+        // New appointment starts during an existing appointment
+        (newStartMinutes >= existingStartMinutes && newStartMinutes < existingEndMinutes) ||
+        // New appointment ends during an existing appointment
+        (newEndMinutes > existingStartMinutes && newEndMinutes <= existingEndMinutes) ||
+        // New appointment contains an existing appointment
+        (newStartMinutes <= existingStartMinutes && newEndMinutes >= existingEndMinutes) ||
+        // New appointment is equal to an existing appointment
+        (newStartMinutes === existingStartMinutes && newEndMinutes === existingEndMinutes)
+      );
+      
+      if (hasOverlap) {
+        console.log(`Conflict detected with appointment ID ${appointment._id}`);
+        return true;
+      }
+    }
+    
+    console.log('No conflicts found');
+    return false;
   }
 }

@@ -1,13 +1,15 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Connection } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
+import { InjectConnection } from '@nestjs/mongoose';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectConnection() private connection: Connection
   ) {}
 
   async findAll(): Promise<User[]> {
@@ -127,6 +129,61 @@ export class UsersService {
       return updatedUser;
     } catch (error) {
       throw error;
+    }
+  }
+
+  async findPatientForDentist(patientId: string, dentistId: string): Promise<User> {
+    try {
+      // Find the patient first to verify they exist
+      const patient = await this.userModel
+        .findById(patientId)
+        .select('-password')
+        .exec();
+        
+      if (!patient) {
+        throw new NotFoundException(`Patient with ID ${patientId} not found`);
+      }
+
+      // Get the appointment model from the connection
+      const appointmentModel = this.connection.model('Appointment');
+      
+      // Use lean() to get plain JavaScript objects and optimize query performance
+      const appointments = await appointmentModel.find({
+        $or: [
+          // Try different formats for patient and dentist IDs to ensure matching works
+          { patient: patientId, dentist: dentistId },
+          { 'patient._id': patientId, 'dentist._id': dentistId },
+          { patientId: patientId, dentistId: dentistId }
+        ]
+      }).lean().exec();
+
+      console.log(`Found ${appointments.length} appointments for patient ${patientId} and dentist ${dentistId}`);
+      
+      if (!appointments || appointments.length === 0) {
+        // If admin, allow access to any patient
+        const dentist = await this.userModel.findById(dentistId).select('role').lean().exec();
+        if (dentist && dentist.role === 'admin') {
+          console.log('Admin access granted for patient data');
+          return patient;
+        }
+        
+        throw new ForbiddenException('You do not have permission to view this patient');
+      }
+      
+      // Log success when everything works
+      console.log(`Successfully retrieved patient data for patient ${patientId}`);
+      return patient;
+    } catch (error) {
+      console.error(`Error in findPatientForDentist: ${error.message}`, error.stack);
+      
+      // Re-throw specific exceptions as-is
+      if (error instanceof ForbiddenException || error instanceof NotFoundException) {
+        throw error;
+      }
+      
+      // For other unexpected errors, log them but don't expose details to client
+      console.error('Unexpected error in findPatientForDentist:', error);
+      throw new Error(`An error occurred while retrieving patient data: ${error.message}`);
     }
   }
 }

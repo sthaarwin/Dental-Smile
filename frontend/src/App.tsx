@@ -31,6 +31,7 @@ import DentistDashboard from "./pages/DentistDashboard";
 import RoleDashboardRedirect from "./components/RoleDashboardRedirect";
 import DentistManagement from "./pages/DentistManagement";
 import ServicesPage from "./pages/ServicesPage";
+import PatientDetail from "./pages/PatientDetail";
 
 // Initialize queryClient with secure configuration
 const queryClient = new QueryClient({
@@ -57,10 +58,14 @@ const AnimatedRoutes = () => {
       <AnimatePresence mode="wait">
         <motion.main
           key={location.pathname}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -5 }}
+          transition={{ 
+            duration: 0.35, 
+            ease: "easeInOut",
+            exitDuration: 0.2
+          }}
           className="page-content"
         >
           <Routes location={location}>
@@ -94,7 +99,7 @@ const AnimatedRoutes = () => {
             <Route path="/dashboard/services" element={<PrivateRoute><ServicesPage /></PrivateRoute>} />
             
             <Route path="/dentist-dashboard" element={<PrivateRoute><DentistDashboard /></PrivateRoute>} />
-            <Route path="/dentist-dashboard/patients/:id" element={<PrivateRoute><DentistDashboard /></PrivateRoute>} />
+            <Route path="/dentist-dashboard/patients/:patientId" element={<PrivateRoute><PatientDetail /></PrivateRoute>} />
             
             <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
        

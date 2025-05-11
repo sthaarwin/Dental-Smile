@@ -9,7 +9,8 @@ import {
   UseGuards,
   Logger,
   Request,
-  Query
+  Query,
+  ForbiddenException
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -105,6 +106,47 @@ export class UsersController {
     const userObj = (user as any).toObject ? (user as any).toObject() : user;
     const { password, ...result } = userObj;
     return result;
+  }
+
+  @Get('patients/:id')
+  @UseGuards(RolesGuard)
+  @Roles('dentist', 'admin')
+  async getPatientForDentist(@Param('id') id: string, @Request() req): Promise<any> {
+    // Add detailed logging to help troubleshoot 
+    this.logger.log(`Getting patient data: patientId=${id}, requestingUser=${req.user.userId}, role=${req.user.role || 'undefined'}`);
+    
+    try {
+      // Get user details from database including role, in case the token doesn't have it
+      if (!req.user.role) {
+        const userDetails = await this.usersService.findCurrentUser(req.user.userId);
+        req.user.role = userDetails.role;
+        this.logger.log(`Retrieved role from database: ${req.user.role}`);
+      }
+      
+      let user;
+      
+      if (req.user.role === 'admin') {
+        this.logger.log('Admin accessing patient data');
+        user = await this.usersService.findOne(id);
+      } else if (req.user.role === 'dentist') {
+        this.logger.log('Dentist accessing patient data, verifying relationship');
+        user = await this.usersService.findPatientForDentist(id, req.user.userId);
+      } else {
+        throw new ForbiddenException('You do not have permission to access this patient');
+        }
+      
+      // If we get here, we successfully retrieved user data
+      this.logger.log(`Successfully processed patient data request for ${id}`);
+      
+      // Remove password from response and ensure we return proper data
+      const userObj = user.toObject ? user.toObject() : user;
+      const { password, ...result } = userObj;
+      
+      return result;
+    } catch (error) {
+      this.logger.error(`Error getting patient data: ${error.message}`, error.stack);
+      throw error; // Let NestJS exception filters handle it
+    }
   }
 
   @Post()

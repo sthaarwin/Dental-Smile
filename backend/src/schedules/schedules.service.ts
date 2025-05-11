@@ -357,7 +357,6 @@ export class SchedulesService {
       throw new NotFoundException(`Failed to update schedule for dentist ${dentistId}`);
     }
     
-    // Return formatted schedule for frontend display
     return this.formatScheduleForFrontend(updatedSchedule);
   }
   
@@ -398,7 +397,8 @@ export class SchedulesService {
             throw new NotFoundException(`Failed to update schedule for dentist ${dentistId}`);
           }
           
-          return updatedSchedule;
+          // Return formatted schedule to match addTimeSlot behavior
+          return this.formatScheduleForFrontend(updatedSchedule);
         }
       }
     } else {
@@ -410,7 +410,9 @@ export class SchedulesService {
           
           workingHours[slotsField] = workingHours[slotsField].filter(slot => {
             const slotIdToCompare = typeof slot.id === 'number' ? slot.id : parseInt(slot.id.toString(), 10);
-            return slotIdToCompare !== slotIdNumber;
+            const doesMatch = slotIdToCompare !== slotIdNumber;
+            if (!doesMatch) found = true;
+            return doesMatch;
           });
           
           if (workingHours[slotsField].length < initialLength) {
@@ -424,7 +426,7 @@ export class SchedulesService {
               throw new NotFoundException(`Failed to update schedule for dentist ${dentistId}`);
             }
             
-            return updatedSchedule;
+            return this.formatScheduleForFrontend(updatedSchedule);
           }
         }
       }
@@ -434,6 +436,63 @@ export class SchedulesService {
       throw new NotFoundException(`Time slot with ID ${slotId} not found`);
     }
     
-    return workingHours;
+    return this.formatScheduleForFrontend(workingHours);
+  }
+
+  async updateTimeSlot(dentistId: string, timeSlotData: any): Promise<WorkingHours> {
+    const workingHours = await this.findByDentist(dentistId);
+    
+    const { id, day, startTime, endTime, isAvailable } = timeSlotData;
+    const slotIdNumber = typeof id === 'number' ? id : parseInt(id.toString(), 10);
+    
+    if (isNaN(slotIdNumber)) {
+      throw new Error('Invalid slot ID: must be a number');
+    }
+    
+    const validDays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const normalizedDay = day.toLowerCase();
+    
+    if (!validDays.includes(normalizedDay)) {
+      throw new Error(`Invalid day name: ${day}`);
+    }
+    
+    const formattedStartTime = this.convertToAmPmFormat(startTime);
+    const formattedEndTime = this.convertToAmPmFormat(endTime);
+    
+    const slotsField = `${normalizedDay}Slots`;
+    
+    if (!workingHours[slotsField]) {
+      workingHours[slotsField] = [];
+    }
+    
+    const slotIndex = workingHours[slotsField].findIndex(slot => {
+      const currentId = typeof slot.id === 'number' ? slot.id : parseInt(slot.id.toString(), 10);
+      return currentId === slotIdNumber;
+    });
+    
+    if (slotIndex === -1) {
+      throw new NotFoundException(`Time slot with ID ${slotIdNumber} not found in ${normalizedDay}`);
+    }
+    
+    workingHours[slotsField][slotIndex] = {
+      ...workingHours[slotsField][slotIndex],
+      startTime: formattedStartTime,
+      endTime: formattedEndTime,
+      isAvailable: isAvailable !== undefined ? isAvailable : workingHours[slotsField][slotIndex].isAvailable
+    };
+    
+    console.log(`Updating time slot ${slotIdNumber} in ${normalizedDay}:`, workingHours[slotsField][slotIndex]);
+    
+    const updatedSchedule = await this.workingHoursModel.findOneAndUpdate(
+      { dentist: dentistId },
+      { [slotsField]: workingHours[slotsField] },
+      { new: true }
+    ).exec();
+    
+    if (!updatedSchedule) {
+      throw new NotFoundException(`Failed to update schedule for dentist ${dentistId}`);
+    }
+    
+    return this.formatScheduleForFrontend(updatedSchedule);
   }
 }

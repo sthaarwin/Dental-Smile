@@ -19,9 +19,14 @@ const Navbar = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    // Start the navigation first to trigger the exit animation
     navigate('/login');
+    
+    // Delay removing the token/user data slightly to allow the animation to start
+    setTimeout(() => {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }, 100);
   };
   
   // Get the appropriate dashboard URL based on user role

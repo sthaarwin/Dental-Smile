@@ -44,6 +44,9 @@ const Login = () => {
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
       
+      // Show success toast
+      toast.success('Logged in successfully!');
+      
       // Then fetch the complete user data including profile picture
       try {
         // The token is now set in localStorage and will be included in API requests
@@ -57,8 +60,12 @@ const Login = () => {
         console.error("Error fetching current user data:", err);
       }
       
-      toast.success('Logged in successfully!');
-      navigate('/dashboard');
+      // Delay the navigation slightly to allow the animation to start
+      // This helps ensure a smooth transition to the dashboard
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 50);
+      
     } catch (error: any) {
       console.error('Login error:', error);
       

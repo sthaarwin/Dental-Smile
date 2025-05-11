@@ -64,7 +64,11 @@ export class AuthService {
     try {
       const user = await this.usersService.create(userData);
       
-      const payload = { email: user.email, sub: `${(user as any)._id}` };
+      const payload = { 
+        email: user.email, 
+        sub: `${(user as any)._id}`,
+        role: user.role || 'patient'
+      };
       
       const userObj = (user as any).toObject ? (user as any).toObject() : user;
       const { password, ...userWithoutPassword } = userObj;
