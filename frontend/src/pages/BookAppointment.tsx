@@ -29,6 +29,7 @@ import {
   UserCircle,
   Plus,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -36,7 +37,7 @@ import api from "@/services/api";
 
 import { Dentist } from "@/types/dentist";
 
-const timeSlots = [
+const defaultTimeSlots = [
   "9:00 AM", "9:30 AM", "10:00 AM", "10:30 AM",
   "11:00 AM", "11:30 AM", "2:00 PM", "2:30 PM",
   "3:00 PM", "3:30 PM", "4:00 PM", "4:30 PM"
@@ -68,6 +69,8 @@ const BookAppointment = () => {
   const [customTimeHours, setCustomTimeHours] = useState("");
   const [customTimeMinutes, setCustomTimeMinutes] = useState("");
   const [customTimeAmPm, setCustomTimeAmPm] = useState("AM");
+  const [availableTimeSlots, setAvailableTimeSlots] = useState<string[]>(defaultTimeSlots);
+  const [isLoadingTimeSlots, setIsLoadingTimeSlots] = useState<boolean>(false);
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -81,6 +84,9 @@ const BookAppointment = () => {
   const [selectedDentistId, setSelectedDentistId] = useState<number | undefined>(
     selectedDentist?.id
   );
+
+  // Add a new state to track suggested alternative times
+  const [suggestedTimes, setSuggestedTimes] = useState<string[]>([]);
   
   // Fetch dentists from the backend
   useEffect(() => {
@@ -181,6 +187,319 @@ const BookAppointment = () => {
     checkAuth();
   }, []);
 
+  // Fetch available time slots when date or dentist changes
+  useEffect(() => {
+    if (selectedDate && selectedDentistId) {
+      fetchAvailableTimeSlots(selectedDate, selectedDentistId);
+    }
+  }, [selectedDate, selectedDentistId]);
+
+  // Reset selected time when available time slots change
+  useEffect(() => {
+    if (selectedTime && !availableTimeSlots.includes(selectedTime) && !showCustomTimeInput) {
+      setSelectedTime(undefined);
+    }
+  }, [availableTimeSlots]);
+
+  // Fetch available time slots based on dentist schedule and existing appointments
+  const fetchAvailableTimeSlots = async (date: Date, dentistId: number) => {
+    setIsLoadingTimeSlots(true);
+    setAvailableTimeSlots([]);
+    // Clear suggested times
+    setSuggestedTimes([]);
+    
+    try {
+      // Format date as YYYY-MM-DD
+      const formattedDate = date.toISOString().split('T')[0];
+      // Get day of week as lowercase string (e.g., 'monday')
+      const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
+
+      console.log(`Fetching availability for date: ${formattedDate}, dentist: ${dentistId}, day: ${dayOfWeek}`);
+
+      // 1. Fetch dentist's schedule
+      let schedule;
+      try {
+        const scheduleResponse = await api.get(`/schedules/dentist/${dentistId}`);
+        schedule = scheduleResponse.data;
+        console.log("Dentist schedule:", schedule);
+      } catch (error) {
+        console.error("Failed to fetch dentist schedule:", error);
+        setAvailableTimeSlots([]);
+        setIsLoadingTimeSlots(false);
+        return;
+      }
+
+      // 2. Check if the dentist works on this day
+      // First check if the specific date is a day off
+      const daysOff = schedule?.daysOff || [];
+      const isDayOff = Array.isArray(daysOff) && daysOff.some(dayOff => {
+        // Compare dates - convert string dates to Date objects if needed
+        const offDate = typeof dayOff === 'string' ? new Date(dayOff) : dayOff;
+        return offDate && offDate.toISOString().split('T')[0] === formattedDate;
+      });
+
+      if (isDayOff) {
+        console.log(`Dentist is off on this specific date: ${formattedDate}`);
+        toast.error("The dentist is not available on this date");
+        setAvailableTimeSlots([]);
+        setIsLoadingTimeSlots(false);
+        return;
+      }
+
+      // Then check the day's schedule
+      const dailySchedule = schedule?.[dayOfWeek];
+      console.log(`Schedule for ${dayOfWeek}:`, dailySchedule);
+
+      // Is this day a working day?
+      const isWorkingDay = dailySchedule && (
+        (typeof dailySchedule === 'object' && dailySchedule.isWorking !== false) ||
+        (Array.isArray(dailySchedule) && dailySchedule.length > 0)
+      );
+
+      if (!isWorkingDay) {
+        console.log(`Dentist does not work on ${dayOfWeek}`);
+        toast.error("The dentist does not work on this day");
+        setAvailableTimeSlots([]);
+        setIsLoadingTimeSlots(false);
+        return;
+      }
+
+      // 3. Get the dentist's working hours for this day
+      const workHours = {
+        start: dailySchedule?.startTime || "9:00 AM",
+        end: dailySchedule?.endTime || "5:00 PM"
+      };
+
+      console.log("Working hours:", workHours);
+
+      // 4. Get specific time slots for this day if available
+      const daySpecificSlots = schedule?.[`${dayOfWeek}Slots`] || [];
+      const hasSpecificSlots = Array.isArray(daySpecificSlots) && daySpecificSlots.length > 0;
+
+      // 5. Try to fetch existing appointments
+      let bookedTimeSlots = new Set();
+      
+      try {
+        console.log(`Fetching booked appointments for dentist ${dentistId} on ${formattedDate}...`);
+        // Use the public endpoint for appointment checking
+        const appointmentsUrl = `/appointments/public`;
+        const appointmentsResponse = await api.get(appointmentsUrl, { 
+          params: { 
+            date: formattedDate,
+            dentist: dentistId
+          }
+        });
+        
+        const appointments = appointmentsResponse.data;
+        console.log(`Found ${appointments.length} appointments for this date:`, appointments);
+        
+        // Process appointments to extract booked time slots
+        if (appointments && Array.isArray(appointments)) {
+          appointments.forEach(appointment => {
+            // Skip cancelled or no-show appointments
+            if (appointment.status === 'cancelled' || appointment.status === 'no-show') {
+              console.log(`Skipping ${appointment.status} appointment:`, appointment);
+              return;
+            }
+            
+            // Add the appointment time to booked slots
+            const startTime = appointment.startTime || appointment.time;
+            if (startTime) {
+              console.log(`Marking time slot as booked: ${startTime}`);
+              bookedTimeSlots.add(startTime);
+            }
+
+            // Block any overlapping slots
+            if (startTime && appointment.endTime) {
+              console.log(`Checking for overlaps with: ${startTime} - ${appointment.endTime}`);
+              
+              defaultTimeSlots.forEach(slot => {
+                // Calculate end time for this slot
+                const slotEnd = calculateEndTime(slot, "30 min");
+                
+                // If this slot overlaps with the appointment, mark it as booked
+                if (isTimeOverlapping(slot, slotEnd, startTime, appointment.endTime)) {
+                  console.log(`Slot ${slot} overlaps with existing appointment, marking as booked`);
+                  bookedTimeSlots.add(slot);
+                }
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching appointments:", error);
+        // If we can't fetch appointments, we'll use an empty set (assume no bookings)
+        console.log("No appointment data available - proceeding with empty booked slots");
+      }
+
+      console.log("All booked time slots:", [...bookedTimeSlots]);
+
+      // 6. Determine available time slots
+      let availableSlots = [];
+      let allPossibleSlots = []; // All possible slots on this day
+      
+      if (hasSpecificSlots) {
+        allPossibleSlots = daySpecificSlots
+          .filter(slot => slot.isAvailable)
+          .map(slot => slot.startTime);
+          
+        // Filter specific time slots that are available and not booked
+        availableSlots = allPossibleSlots.filter(time => !bookedTimeSlots.has(time));
+          
+        console.log("Using specific time slots:", availableSlots);
+      } else {
+        // All default time slots within working hours
+        allPossibleSlots = defaultTimeSlots.filter(time => 
+          isTimeInRange(time, workHours.start, workHours.end)
+        );
+        
+        // Filter default time slots based on working hours and bookings
+        availableSlots = allPossibleSlots.filter(time => {
+          const isWithinWorkHours = isTimeInRange(time, workHours.start, workHours.end);
+          const isNotBooked = !bookedTimeSlots.has(time);
+          
+          if (!isWithinWorkHours) {
+            console.log(`Time slot ${time} is outside working hours`);
+          }
+          if (!isNotBooked) {
+            console.log(`Time slot ${time} is already booked`);
+          }
+          
+          return isWithinWorkHours && isNotBooked;
+        });
+        
+        console.log("Available time slots after filtering:", availableSlots);
+      }
+      
+      // Generate suggested times if specific slot is requested
+      // or if there are very few available slots
+      if ((selectedTime && bookedTimeSlots.has(selectedTime)) || 
+          (availableSlots.length < 3 && allPossibleSlots.length > 0)) {
+        
+        // Suggest up to 3 alternative times
+        const suggestions = allPossibleSlots
+          .filter(time => !bookedTimeSlots.has(time))
+          .slice(0, 3);
+        
+        console.log("Generated time suggestions:", suggestions);
+        setSuggestedTimes(suggestions);
+      }
+      
+      // Update state with available slots
+      setAvailableTimeSlots(availableSlots);
+      
+      // Reset selected time if it's not available
+      if (selectedTime && !availableSlots.includes(selectedTime) && !showCustomTimeInput) {
+        console.log(`Selected time ${selectedTime} is no longer available, clearing selection`);
+        setSelectedTime(undefined);
+      }
+    } catch (error) {
+      console.error("Error determining available time slots:", error);
+      toast.error("Failed to fetch available times");
+      setAvailableTimeSlots([]);
+    } finally {
+      setIsLoadingTimeSlots(false);
+    }
+  };
+
+  // Helper function to check if two time ranges overlap
+  const isTimeOverlapping = (startA: string, endA: string, startB: string, endB: string): boolean => {
+    const startAMinutes = getTimeInMinutes(startA);
+    const endAMinutes = getTimeInMinutes(endA);
+    const startBMinutes = getTimeInMinutes(startB);
+    const endBMinutes = getTimeInMinutes(endB);
+    
+    // Check if one time range starts during another time range
+    return (startAMinutes < endBMinutes && endAMinutes > startBMinutes);
+  };
+  
+  // Helper function to convert time string to minutes for comparison
+  const getTimeInMinutes = (timeStr: string): number => {
+    if (!timeStr) return 0;
+    
+    const [timePart, period] = timeStr.split(' ');
+    if (!timePart || !period) return 0;
+    
+    let [hours, minutes] = timePart.split(':').map(Number);
+    
+    if (isNaN(hours) || isNaN(minutes)) return 0;
+    
+    if (period === 'PM' && hours !== 12) hours += 12;
+    if (period === 'AM' && hours === 12) hours = 0;
+    
+    return hours * 60 + minutes;
+  };
+
+  // Helper function to check if a time is within a range
+  const isTimeInRange = (time: string, startTime: string, endTime: string): boolean => {
+    // Convert to minutes for easier comparison
+    const timeMinutes = getTimeInMinutes(time);
+    const startMinutes = getTimeInMinutes(startTime);
+    const endMinutes = getTimeInMinutes(endTime);
+    
+    return timeMinutes >= startMinutes && timeMinutes < endMinutes;
+  };
+
+  // New function to check time slot availability before proceeding
+  const checkTimeSlotAvailability = async (): Promise<boolean> => {
+    if (!selectedDate || !selectedTime || !selectedDentistId) {
+      return false;
+    }
+    
+    try {
+      // Format date in the same way we do for submission
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+      
+      // Get a preliminary end time for checking
+      // We'll use 30 minutes as a default duration for this check
+      const prelimEndTime = calculateEndTime(selectedTime, "30 min");
+      
+      // Make a request to check if this time slot is available
+      const response = await api.get('/appointments/public', {
+        params: {
+          date: formattedDate,
+          dentist: selectedDentistId
+        }
+      });
+      
+      if (!response.data || !Array.isArray(response.data)) {
+        console.error("Invalid response when checking appointment availability");
+        return true; // Allow to proceed if we can't properly check
+      }
+
+      // Check for conflicts with existing appointments
+      for (const appointment of response.data) {
+        if (appointment.status === 'cancelled' || appointment.status === 'no-show') {
+          continue; // Skip cancelled appointments
+        }
+        
+        // Simple check for exact same start time
+        if (appointment.startTime === selectedTime) {
+          toast.error("This time slot is already booked. Please select a different time.");
+          return false;
+        }
+        
+        // Check for overlapping appointments using our time helper functions
+        if (isTimeOverlapping(
+          selectedTime, prelimEndTime,
+          appointment.startTime, appointment.endTime
+        )) {
+          toast.error("This time conflicts with an existing appointment. Please select a different time.");
+          return false;
+        }
+      }
+      
+      return true; // No conflicts found
+    } catch (error) {
+      console.error("Error checking appointment availability:", error);
+      // Let them proceed if we can't check properly, backend will validate again on submit
+      return true;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedDate || !selectedTime || !appointmentType || !selectedDentistId) {
       toast.error("Please complete all required fields");
@@ -188,28 +507,50 @@ const BookAppointment = () => {
     }
     
     try {
-      // Format the data for the API
+      // Create a date string in YYYY-MM-DD format that preserves the selected date
+      // Using UTC date methods to avoid timezone issues
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      const formattedDate = `${year}-${month}-${day}`;
+      
+      console.log("User selected date:", selectedDate);
+      console.log("Formatted date being sent:", formattedDate);
+      
       const appointmentData = {
-        patient: user._id || user.id, // Changed from patient_id to patient
-        dentist: selectedDentistId.toString(), // Changed from dentist_id to dentist
-        date: selectedDate.toISOString().split('T')[0],
-        startTime: selectedTime, // Changed from start_time to startTime
+        patient: user._id || user.id,
+        dentist: selectedDentistId.toString(),
+        date: formattedDate,  // Use the formatted date string
+        startTime: selectedTime,
         endTime: calculateEndTime(selectedTime, 
-          appointmentTypes.find(t => t.id === appointmentType)?.duration || "30 min"), // Changed from end_time to endTime
-        service: appointmentTypes.find(t => t.id === appointmentType)?.label || "", // Changed from service_type to service
+          appointmentTypes.find(t => t.id === appointmentType)?.duration || "30 min"),
+        service: appointmentTypes.find(t => t.id === appointmentType)?.label || "",
         notes: formData.notes
-        // Removed additional fields not expected by the backend:
-        // - status
-        // - patient_name
-        // - patient_email
-        // - patient_phone
       };
       
       console.log("Sending appointment data:", appointmentData);
-      await api.post('/appointments', appointmentData);
       
-      toast.success("Appointment booked successfully!");
-      navigate("/dashboard");
+      try {
+        await api.post('/appointments', appointmentData);
+        toast.success("Appointment booked successfully!");
+        navigate("/dashboard");
+      } catch (error: any) {
+        // Handle conflict errors specifically
+        if (error.response?.status === 400 && 
+            error.response?.data?.message === 'This time slot is already booked') {
+          toast.error("This time slot is already booked. Please select a different time.");
+          // Move back to time selection step
+          setCurrentStep(2);
+          // Refresh available time slots
+          if (selectedDate) {
+            fetchAvailableTimeSlots(selectedDate, selectedDentistId);
+          }
+        } else {
+          const errorMessage = error.response?.data?.message || "Failed to book appointment";
+          toast.error(errorMessage);
+          console.error("Appointment booking error:", error);
+        }
+      }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || "Failed to book appointment";
       toast.error(errorMessage);
@@ -251,8 +592,8 @@ const BookAppointment = () => {
     return `${endHour}:${endMinute.toString().padStart(2, '0')} ${endPeriod}`;
   };
 
-  const handleNext = () => {
-     if (currentStep === 1 && !selectedDate) {
+  const handleNext = async () => {
+    if (currentStep === 1 && !selectedDate) {
       toast.error("Please select a date");
       return;
     }
@@ -260,6 +601,28 @@ const BookAppointment = () => {
     if (currentStep === 2 && !selectedTime) {
       toast.error("Please select a time");
       return;
+    }
+    
+    // Check time slot availability before proceeding to service selection
+    if (currentStep === 2) {
+      // Show loading indicator
+      toast.loading("Checking appointment availability...");
+      
+      const isAvailable = await checkTimeSlotAvailability();
+      
+      // Dismiss the loading toast
+      toast.dismiss();
+      
+      if (!isAvailable) {
+        // If slot is not available, fetch new available time slots
+        if (selectedDate && selectedDentistId) {
+          fetchAvailableTimeSlots(selectedDate, selectedDentistId);
+        }
+        return; // Don't proceed if time slot is not available
+      }
+      
+      // If available, show confirmation and proceed
+      toast.success("Time slot available!");
     }
     
     if (currentStep === 3 && !appointmentType) {
@@ -454,7 +817,7 @@ const BookAppointment = () => {
                       onSelect={setSelectedDate}
                       className="rounded-md border shadow-sm"
                       disabled={(date) => {
-                        return date < new Date() || date.getDay() === 0;
+                        return date < new Date() || date.getDay() === 6; 
                       }}
                     />
                   </div>
@@ -492,40 +855,89 @@ const BookAppointment = () => {
                   Select a Time
                 </h2>
                 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
-                  {timeSlots.map((time) => (
+                {isLoadingTimeSlots ? (
+                  <div className="flex justify-center items-center h-40">
+                    <div className="flex flex-col items-center space-y-2">
+                      <Loader2 className="w-8 h-8 text-dentist-600 animate-spin" />
+                      <p className="text-dentist-600">Loading available times...</p>
+                    </div>
+                  </div>
+                ) : availableTimeSlots.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
+                    {availableTimeSlots.map((time) => (
+                      <button
+                        key={time}
+                        onClick={() => {
+                          setSelectedTime(time);
+                          setShowCustomTimeInput(false);
+                        }}
+                        className={`p-4 rounded-lg border text-center transition-colors flex flex-col items-center justify-center hover:shadow-md
+                          ${
+                            selectedTime === time
+                              ? "bg-dentist-50 border-dentist-600 text-dentist-600 ring-2 ring-dentist-200"
+                              : "border-gray-200 hover:border-dentist-600"
+                          }`}
+                      >
+                        <Clock className="w-5 h-5 mb-1" />
+                        {time}
+                      </button>
+                    ))}
+                    
+                    {/* Custom time button */}
                     <button
-                      key={time}
-                      onClick={() => {
-                        setSelectedTime(time);
-                        setShowCustomTimeInput(false);
-                      }}
+                      onClick={handleCustomTimeSelect}
                       className={`p-4 rounded-lg border text-center transition-colors flex flex-col items-center justify-center hover:shadow-md
                         ${
-                          selectedTime === time
+                          selectedTime === "custom" || showCustomTimeInput
                             ? "bg-dentist-50 border-dentist-600 text-dentist-600 ring-2 ring-dentist-200"
                             : "border-gray-200 hover:border-dentist-600"
                         }`}
                     >
-                      <Clock className="w-5 h-5 mb-1" />
-                      {time}
+                      <Plus className="w-5 h-5 mb-1" />
+                      Custom Time
                     </button>
-                  ))}
-                  
-                  {/* Custom time button */}
-                  <button
-                    onClick={handleCustomTimeSelect}
-                    className={`p-4 rounded-lg border text-center transition-colors flex flex-col items-center justify-center hover:shadow-md
-                      ${
-                        selectedTime === "custom" || showCustomTimeInput
-                          ? "bg-dentist-50 border-dentist-600 text-dentist-600 ring-2 ring-dentist-200"
-                          : "border-gray-200 hover:border-dentist-600"
-                      }`}
-                  >
-                    <Plus className="w-5 h-5 mb-1" />
-                    Custom Time
-                  </button>
-                </div>
+                  </div>
+                ) : (
+                  <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200 mb-6">
+                    <div className="flex items-start">
+                      <AlertTriangle className="w-6 h-6 text-yellow-500 mr-3 mt-0.5" />
+                      <div>
+                        <h3 className="font-medium text-yellow-800 mb-1">No Available Time Slots</h3>
+                        <p className="text-yellow-700 mb-4">
+                          There are no available time slots for the selected date. This could be because the dentist isn't working on this day, 
+                          all slots are booked, or no schedule is defined.
+                        </p>
+                        
+                        {suggestedTimes.length > 0 && (
+                          <div className="mt-3">
+                            <h4 className="font-medium text-yellow-800 mb-2">Available alternatives:</h4>
+                            <div className="flex flex-wrap gap-2">
+                              {suggestedTimes.map(time => (
+                                <button
+                                  key={time}
+                                  onClick={() => {
+                                    setSelectedTime(time);
+                                    setShowCustomTimeInput(false);
+                                  }}
+                                  className="inline-flex items-center px-3 py-1.5 bg-white border border-yellow-300 rounded-md text-sm text-yellow-800 hover:bg-yellow-50"
+                                >
+                                  <Clock className="w-3.5 h-3.5 mr-1.5" />
+                                  {time}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {suggestedTimes.length === 0 && (
+                          <p className="text-yellow-700 mt-2">
+                            Please try another date or contact us directly to schedule an appointment.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Custom time input section */}
                 {showCustomTimeInput && (
@@ -576,7 +988,10 @@ const BookAppointment = () => {
                         Apply
                       </Button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-3">Office hours are from 9:00 AM to 5:00 PM</p>
+                    <p className="text-xs text-gray-500 mt-3">
+                      Note: Custom times may not be available if the dentist is already booked or not working at that time.
+                      The system will check availability when you submit your appointment.
+                    </p>
                   </div>
                 )}
                 

@@ -121,12 +121,6 @@ npm run test
 
 ---
 
-## 📝 License
-
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
-
----
-
 ## 👥 Contributors
 
 - [Arwin Shrestha](https://github.com/sthaarwin)

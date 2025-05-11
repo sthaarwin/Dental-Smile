@@ -31,6 +31,35 @@ export class AppointmentsController {
     return this.appointmentsService.create(createAppointmentDto);
   }
 
+  // Public endpoint for checking appointment availability without authentication
+  // This route must be defined before the generic :id route to be properly matched
+  @Get('public')
+  @UseGuards() // Override parent guard with empty guard
+  async getPublicAppointments(@Query() query: any): Promise<FormattedAppointment[]> {
+    // This endpoint allows public access to appointment times for booking purposes
+    // It only returns minimal info needed for checking availability
+    
+    if (!query.date || !query.dentist) {
+      throw new BadRequestException('Both date and dentist parameters are required');
+    }
+    
+    try {
+      const date = new Date(query.date);
+      const appointments = await this.appointmentsService.findByDateAndDentist(date, query.dentist);
+      
+      // Only return minimal data needed for booking (no patient details)
+      return appointments.map(appointment => ({
+        id: appointment.id,
+        date: appointment.date,
+        startTime: appointment.startTime,
+        endTime: appointment.endTime,
+        status: appointment.status,
+      }));
+    } catch (error) {
+      throw new BadRequestException('Invalid parameters');
+    }
+  }
+
   @Get()
   @UseGuards(RolesGuard)
   @Roles('admin', 'dentist')

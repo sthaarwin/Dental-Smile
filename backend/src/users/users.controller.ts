@@ -133,7 +133,7 @@ export class UsersController {
         user = await this.usersService.findPatientForDentist(id, req.user.userId);
       } else {
         throw new ForbiddenException('You do not have permission to access this patient');
-      }
+        }
       
       // If we get here, we successfully retrieved user data
       this.logger.log(`Successfully processed patient data request for ${id}`);
