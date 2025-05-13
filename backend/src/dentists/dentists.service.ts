@@ -89,6 +89,38 @@ export class DentistsService {
         role,
         dentist_details: dentistDetails
       });
+
+      // If approved, initialize default schedule
+      if (status === 'approved') {
+        // Import and use the schedules service
+        try {
+          // Create default schedule via HTTP request to schedules service
+          const scheduleData = {
+            dentist: userId,
+            sunday: { isWorking: true, startTime: '10:00 AM', endTime: '4:00 PM' },
+            monday: { isWorking: true, startTime: '10:00 AM', endTime: '4:00 PM' },
+            tuesday: { isWorking: true, startTime: '10:00 AM', endTime: '4:00 PM' },
+            wednesday: { isWorking: true, startTime: '10:00 AM', endTime: '4:00 PM' },
+            thursday: { isWorking: true, startTime: '10:00 AM', endTime: '4:00 PM' },
+            friday: { isWorking: true, startTime: '10:00 AM', endTime: '4:00 PM' },
+            saturday: { isWorking: false, startTime: '', endTime: '' },
+            daysOff: []
+          };
+          
+          // Use Nest's HTTP module to call the schedules endpoint
+          const axios = require('axios');
+          const config = {
+            headers: { 'Content-Type': 'application/json' }
+          };
+          
+          await axios.post(`http://localhost:3000/schedules/dentist/${userId}`, scheduleData, config);
+          
+          this.logger.log(`Created default schedule for newly approved dentist ${userId}`);
+        } catch (scheduleError) {
+          this.logger.error(`Failed to create default schedule for dentist ${userId}:`, scheduleError);
+          // Don't reject the whole operation if schedule creation fails
+        }
+      }
       
       return {
         success: true,

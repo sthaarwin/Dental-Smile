@@ -47,8 +47,6 @@ const DentistSignup = () => {
     middleName: "",
     lastName: "",
     email: "",
-    password: "",
-    confirmPassword: "",
     phone: "",
     
     specialties: [] as string[],
@@ -63,19 +61,27 @@ const DentistSignup = () => {
     state: "",
     zipCode: "",
     officePhone: "",
-    businessHours: "",
+    businessHours: {
+      sunday: { open: "10:00", close: "16:00", isOpen: true },
+      monday: { open: "10:00", close: "16:00", isOpen: true },
+      tuesday: { open: "10:00", close: "16:00", isOpen: true },
+      wednesday: { open: "10:00", close: "16:00", isOpen: true },
+      thursday: { open: "10:00", close: "16:00", isOpen: true },
+      friday: { open: "10:00", close: "16:00", isOpen: true },
+      saturday: { open: "10:00", close: "16:00", isOpen: false },
+    },
     acceptedInsurance: "",
     
-     bio: "",
+    bio: "",
     services: [] as string[],
     languages: "",
     
-     applicationStatus: "pending",
+    applicationStatus: "pending",
   });
 
   const [inputService, setInputService] = useState("");
 
-   useEffect(() => {
+  useEffect(() => {
     const checkAuth = async () => {
       setIsLoading(true);
       const token = localStorage.getItem("token");
@@ -134,18 +140,14 @@ const DentistSignup = () => {
     "Emergency Dental Care"
   ];
 
-  const updateForm = (key: string, value: string | string[]) => {
+  const updateForm = (key: string, value: string | string[] | object) => {
     setFormData((prev) => ({ ...prev, [key]: value }));
   };
 
   const handleNext = () => {
      if (step === 1) {
-      if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+      if (!formData.firstName || !formData.lastName || !formData.email) {
         toast.error("Please fill in all required fields");
-        return;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        toast.error("Passwords do not match");
         return;
       }
     }
@@ -162,7 +164,7 @@ const DentistSignup = () => {
     
     try {
       // Validate form data
-      if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
+      if (!formData.firstName || !formData.lastName || !formData.email) {
         toast.error("Please fill in all required personal information");
         return;
       }
@@ -174,7 +176,6 @@ const DentistSignup = () => {
       const dentistData = {
         name: fullName,
         email: formData.email,
-        password: formData.password,
         phone_number: formData.phone,
         role: 'dentist',
         
@@ -205,7 +206,6 @@ const DentistSignup = () => {
       // Check if we're already logged in
       if (isAuthenticated && user) {
         // Update existing user with dentist details
-        delete dentistData.password; // Remove password from update data
         
         // Format the data properly for the backend API endpoint
         // The backend expects the ID as a direct parameter, not in the request body
@@ -271,6 +271,19 @@ const DentistSignup = () => {
     } else {
       addService(value);
     }
+  };
+
+  const updateBusinessHours = (day: string, key: string, value: string | boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      businessHours: {
+        ...prev.businessHours,
+        [day]: {
+          ...prev.businessHours[day],
+          [key]: value,
+        },
+      },
+    }));
   };
 
   if (isLoading) {
@@ -423,40 +436,6 @@ const DentistSignup = () => {
                           required
                           readOnly={isAuthenticated}
                         />
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password *</Label>
-                        <div className="relative mt-1">
-                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                          <Input
-                            id="password"
-                            type="password"
-                            value={formData.password}
-                            onChange={(e) => updateForm("password", e.target.value)}
-                            className="pl-10"
-                            required
-                          />
-                        </div>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Password must be at least 8 characters with letters and numbers.
-                        </p>
-                      </div>
-                      <div>
-                        <Label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700">Confirm Password *</Label>
-                        <div className="relative mt-1">
-                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                          <Input
-                            id="confirmPassword"
-                            type="password"
-                            value={formData.confirmPassword}
-                            onChange={(e) => updateForm("confirmPassword", e.target.value)}
-                            className="pl-10"
-                            required
-                          />
-                        </div>
                       </div>
                     </div>
                     
@@ -664,17 +643,32 @@ const DentistSignup = () => {
                     </div>
                     
                     <div>
-                      <Label htmlFor="businessHours" className="text-sm font-medium text-gray-700">Business Hours *</Label>
-                      <div className="relative mt-1">
-                        <Clock className="absolute left-3 top-3 text-gray-400 h-4 w-4" />
-                        <Textarea
-                          id="businessHours"
-                          value={formData.businessHours}
-                          onChange={(e) => updateForm("businessHours", e.target.value)}
-                          placeholder="Monday - Friday: 9 AM - 5 PM&#10;Saturday: 10 AM - 2 PM&#10;Sunday: Closed"
-                          className="pl-10"
-                          required
-                        />
+                      <Label className="text-sm font-medium text-gray-700">Business Hours *</Label>
+                      <div className="mt-2 space-y-4">
+                        {Object.keys(formData.businessHours).map((day) => (
+                          <div key={day} className="flex items-center space-x-4">
+                            <Label className="text-sm font-medium text-gray-700 w-20">{day.charAt(0).toUpperCase() + day.slice(1)}</Label>
+                            <Checkbox
+                              checked={formData.businessHours[day].isOpen}
+                              onCheckedChange={(checked) => updateBusinessHours(day, "isOpen", checked)}
+                            />
+                            <Input
+                              type="time"
+                              value={formData.businessHours[day].open}
+                              onChange={(e) => updateBusinessHours(day, "open", e.target.value)}
+                              disabled={!formData.businessHours[day].isOpen}
+                              className="w-24"
+                            />
+                            <span>-</span>
+                            <Input
+                              type="time"
+                              value={formData.businessHours[day].close}
+                              onChange={(e) => updateBusinessHours(day, "close", e.target.value)}
+                              disabled={!formData.businessHours[day].isOpen}
+                              className="w-24"
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
 
@@ -842,13 +836,6 @@ const DentistSignup = () => {
                 )}
               </div>
             </form>
-          </div>
-          
-          <div className="mt-6 text-center text-sm text-gray-600">
-            Already have an account?{" "}
-            <Link to="/dentist-login" className="text-dentist-600 hover:text-dentist-700 font-medium">
-              Sign in here
-            </Link>
           </div>
         </div>
       </main>
