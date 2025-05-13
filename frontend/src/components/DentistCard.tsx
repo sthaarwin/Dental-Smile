@@ -37,15 +37,15 @@ const DentistCard = ({ dentist }: DentistCardProps) => {
         const daysOpen = [];
         
         // Loop through each day
-        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const dayAbbreviations = {
+          'sunday': 'Sun',
           'monday': 'Mon',
           'tuesday': 'Tue',
           'wednesday': 'Wed',
           'thursday': 'Thu',
           'friday': 'Fri',
           'saturday': 'Sat',
-          'sunday': 'Sun'
         };
         
         // Group consecutive days with same hours

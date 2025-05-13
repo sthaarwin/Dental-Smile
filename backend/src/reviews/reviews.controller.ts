@@ -32,6 +32,71 @@ export class ReviewsController {
     return this.reviewsService.getDentistRating(id);
   }
 
+  // Public endpoint for submitting reviews (for demo purposes)
+  @Post('dentist/:id/public')
+  async createPublicDentistReview(
+    @Param('id') dentistId: string,
+    @Body() reviewData: any
+  ) {
+    // Create a properly formatted review object
+    const createReviewDto = {
+      dentist: dentistId,
+      patient: '999999999999999999999999', // Demo patient ID
+      rating: reviewData.rating,
+      comment: reviewData.comment,
+      procedure: reviewData.procedure,
+      isVisible: true
+    };
+    
+    const newReview = await this.reviewsService.create(createReviewDto);
+    
+    // Format the review to match the frontend expectations
+    return {
+      id: newReview._id,
+      dentistId: dentistId,
+      patientId: '999999999999999999999999',
+      patientName: reviewData.patientName || 'Demo User',
+      rating: newReview.rating,
+      comment: newReview.comment,
+      date: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
+      procedure: newReview.procedure
+    };
+  }
+
+  // Endpoint to submit a review for a specific dentist
+  @UseGuards(JwtAuthGuard)
+  @Post('dentist/:id')
+  async createDentistReview(
+    @Param('id') dentistId: string,
+    @Body() reviewData: any,
+    @Request() req
+  ) {
+    // Create a properly formatted review object
+    const createReviewDto = {
+      dentist: dentistId,
+      patient: req.user.userId,
+      rating: reviewData.rating,
+      comment: reviewData.comment,
+      procedure: reviewData.procedure,
+      isVisible: true
+    };
+    
+    const newReview = await this.reviewsService.create(createReviewDto);
+    
+    // Format the review to match the frontend expectations
+    const user = req.user;
+    return {
+      id: newReview._id,
+      dentistId: dentistId,
+      patientId: req.user.userId,
+      patientName: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Anonymous',
+      rating: newReview.rating,
+      comment: newReview.comment,
+      date: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
+      procedure: newReview.procedure
+    };
+  }
+
   // Protected routes below
   @UseGuards(JwtAuthGuard)
   @Post()

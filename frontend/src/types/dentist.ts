@@ -15,6 +15,11 @@ export interface BusinessHours {
   [key: string]: BusinessHour;
 }
 
+export interface ServiceWithPrice {
+  name: string;
+  price: number;
+}
+
 export interface Dentist {
   id: number;
   firstName: string;
@@ -30,7 +35,7 @@ export interface Dentist {
   bio: string;
   education: string[];
   certifications: string[];
-  services: string[];
+  services: string[] | ServiceWithPrice[];
   languages: string[];
   experience: number;
   rating: number;

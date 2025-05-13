@@ -73,7 +73,7 @@ const DentistSignup = () => {
     acceptedInsurance: "",
     
     bio: "",
-    services: [] as string[],
+    services: [] as { name: string; price: number }[],
     languages: "",
     
     applicationStatus: "pending",
@@ -254,26 +254,51 @@ const DentistSignup = () => {
     }
   };
 
-  const addService = (service: string) => {
-    if (service && !formData.services.includes(service)) {
+  const addService = (service: { name: string; price: number }) => {
+    if (service && !formData.services.some(s => s.name === service.name)) {
       updateForm("services", [...formData.services, service]);
     }
     setInputService("");
   };
 
-  const removeService = (service: string) => {
-    updateForm("services", formData.services.filter(s => s !== service));
+  const removeService = (serviceName: string) => {
+    updateForm("services", formData.services.filter(s => s.name !== serviceName));
   };
 
   const handleServiceSelect = (value: string) => {
     if (value === "custom") {
       setInputService("custom");
     } else {
-      addService(value);
+      addService({ name: value, price: 0 });
     }
   };
 
   const updateBusinessHours = (day: string, key: string, value: string | boolean) => {
+    // If updating time values, ensure proper formatting
+    if (key === "open" || key === "close") {
+      // Format time values from 24h "HH:MM" format to "h:MM AM/PM" format
+      if (typeof value === 'string' && value) {
+        const [hours, minutes] = value.split(':');
+        const hour = parseInt(hours, 10);
+        const isPM = hour >= 12;
+        const formattedHour = hour % 12 || 12;
+        const formattedTime = `${formattedHour}:${minutes} ${isPM ? 'PM' : 'AM'}`;
+        
+        setFormData((prev) => ({
+          ...prev,
+          businessHours: {
+            ...prev.businessHours,
+            [day]: {
+              ...prev.businessHours[day],
+              [key]: formattedTime,
+            },
+          },
+        }));
+        return;
+      }
+    }
+    
+    // For boolean values or if we couldn't format the time
     setFormData((prev) => ({
       ...prev,
       businessHours: {
@@ -710,7 +735,7 @@ const DentistSignup = () => {
                           </SelectTrigger>
                           <SelectContent>
                             {availableServices
-                              .filter(service => !formData.services.includes(service))
+                              .filter(service => !formData.services.some(s => s.name === service))
                               .map(service => (
                                 <SelectItem key={service} value={service}>
                                   {service}
@@ -722,22 +747,42 @@ const DentistSignup = () => {
                         
                         {/* Custom service input */}
                         {inputService === "custom" && (
-                          <div className="mt-2 flex items-center space-x-2">
-                            <Input
-                              value={inputService}
-                              onChange={(e) => setInputService(e.target.value)}
-                              placeholder="Enter custom service name"
-                              className="flex-1"
-                            />
-                            <Button 
-                              type="button" 
-                              variant="outline" 
-                              onClick={() => addService(inputService)}
-                              size="sm"
-                            >
-                              <Plus className="h-4 w-4 mr-1" />
-                              Add
-                            </Button>
+                          <div className="mt-2 flex flex-col space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                value={inputService}
+                                onChange={(e) => setInputService(e.target.value)}
+                                placeholder="Enter custom service name"
+                                className="flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                type="number"
+                                id="servicePrice"
+                                name="servicePrice"
+                                placeholder="Price ($)"
+                                className="w-32"
+                                onChange={(e) => {
+                                  const price = parseFloat(e.target.value);
+                                  // Store price temporarily in a data attribute
+                                  e.target.dataset.price = isNaN(price) ? "0" : price.toString();
+                                }}
+                              />
+                              <Button 
+                                type="button" 
+                                variant="outline" 
+                                onClick={() => {
+                                  const priceInput = document.getElementById("servicePrice") as HTMLInputElement;
+                                  const price = parseFloat(priceInput?.dataset.price || "0");
+                                  addService({ name: inputService, price });
+                                }}
+                                size="sm"
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -746,14 +791,14 @@ const DentistSignup = () => {
                       <div className="flex flex-wrap gap-2 mt-3">
                         {formData.services.map((service) => (
                           <Badge 
-                            key={service} 
+                            key={service.name} 
                             variant="secondary"
                             className="pl-3 pr-2 py-1 flex items-center gap-1 bg-dentist-50 text-dentist-700 hover:bg-dentist-100"
                           >
-                            {service}
+                            {service.name} (${service.price})
                             <button 
                               type="button"
-                              onClick={() => removeService(service)}
+                              onClick={() => removeService(service.name)}
                               className="ml-1 rounded-full hover:bg-dentist-200 p-0.5"
                             >
                               <X className="h-3 w-3" />

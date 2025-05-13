@@ -145,14 +145,31 @@ export const dentistAPI = {
 };
 
 export const reviewAPI = {
-  getDentistReviews: (dentistId: string) => 
-    api.get(`/reviews/dentist/${dentistId}/public`),
-  submitReview: (reviewData: any) => 
-    api.post('/reviews', reviewData),
-  updateReview: (id: string, reviewData: any) => 
-    api.put(`/reviews/${id}`, reviewData),
-  deleteReview: (id: string) => 
-    api.delete(`/reviews/${id}`),
+  getDentistReviews: (dentistId: string) => {
+    // Try both formats of endpoints for backward compatibility
+    return api.get(`/reviews/dentist/${dentistId}/public`)
+      .catch(error => {
+        console.log(`Trying fallback review endpoint for dentist ${dentistId}`);
+        // If the /public endpoint fails, try the regular endpoint
+        return api.get(`/reviews/dentist/${dentistId}`);
+      });
+  },
+    
+  submitReview: (dentistId: string, reviewData: { rating: number, procedure: string, comment: string }) => {
+    // Get the user's name from local storage if available
+    const user = localStorage.getItem('user');
+    const userName = user ? JSON.parse(user).name || 'Guest User' : 'Guest User';
+    
+    // Try both endpoints for review submission
+    return api.post(`/reviews/dentist/${dentistId}/public`, {
+      ...reviewData,
+      patientName: userName
+    }).catch(error => {
+      console.log("Trying fallback review submission endpoint");
+      // If the /public endpoint fails, try the regular endpoint
+      return api.post(`/reviews/dentist/${dentistId}`, reviewData);
+    });
+  }
 };
 
 export const servicesAPI = {
