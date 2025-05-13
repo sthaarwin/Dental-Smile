@@ -106,11 +106,11 @@ const Footer = () => {
               </li>
               <li>
                 <Link 
-                  to="/dentist-login" 
+                  to="/dental-resources" 
                   className="text-dentist-100 hover:text-white transition"
-                  onClick={handleNavClick('/dentist-login')}
+                  onClick={handleNavClick('/dental-resources')}
                 >
-                  Dentist Login
+                  Dental Resources
                 </Link>
               </li>
               <li>

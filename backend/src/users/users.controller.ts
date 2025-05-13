@@ -70,12 +70,9 @@ export class UsersController {
     }
   }
  
-  // The update-to-dentist route is now defined BEFORE the parameterized routes
-  // This ensures NestJS correctly matches this route
   @Public()
   @Put('update-to-dentist')
   async updateToDentist(@Body() updateData: any, @Query('userId') userId: string) {
-    // Log the incoming request data with the userId from query parameters
     this.logger.log(`Received update-to-dentist request with userId: ${userId}`);
     
     if (!userId) {
@@ -99,12 +96,26 @@ export class UsersController {
   }
 
   @Get(':id')
-  @Roles('admin')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string, @Request() req) {
     const user = await this.usersService.findOne(id);
     // Remove password from response
     const userObj = (user as any).toObject ? (user as any).toObject() : user;
     const { password, ...result } = userObj;
+    
+    // For non-admin users, ensure that public information is available
+    // but restrict access to sensitive information except for the user's own data
+    if (req.user.role !== 'admin' && req.user.userId !== id) {
+      // If viewing a dentist profile, provide essential contact info
+      if (result.role === 'dentist') {
+        // Keep public dentist information accessible to everyone
+        return result;
+      } else {
+        // For non-dentist users, limit what data is returned
+        const { email, phone_number, address, ...publicData } = result;
+        return publicData;
+      }
+    }
+    
     return result;
   }
 

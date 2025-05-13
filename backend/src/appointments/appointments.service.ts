@@ -264,9 +264,6 @@ export class AppointmentsService {
     const dateObj = new Date(dateString);
     dateObj.setUTCHours(0, 0, 0, 0);
     
-    console.log(`Checking conflicts for dentist ${dentistId} on ${dateString}`);
-    console.log(`Time slot: ${startTime} - ${endTime}`);
-
     // Calculate time in minutes for easier comparison
     const getTimeInMinutes = (timeStr: string): number => {
       const [timePart, period] = timeStr.split(' ');
@@ -286,8 +283,6 @@ export class AppointmentsService {
     const newStartMinutes = getTimeInMinutes(startTime);
     const newEndMinutes = getTimeInMinutes(endTime);
     
-    console.log(`New appointment time in minutes: ${newStartMinutes}-${newEndMinutes}`);
-    
     // Find all appointments for this dentist on this date
     const query = {
       dentist: dentistId,
@@ -299,16 +294,12 @@ export class AppointmentsService {
       Object.assign(query, { _id: { $ne: excludeAppointmentId } });
     }
     
-    const existingAppointments = await this.appointmentModel.find(query).exec();
-    
-    console.log(`Found ${existingAppointments.length} existing appointments on this date`);
+    const existingAppointments = await this.appointmentModel.find(query).exec();   
     
     // Check for conflicts by comparing time ranges
     for (const appointment of existingAppointments) {
       const existingStartMinutes = getTimeInMinutes(appointment.startTime);
       const existingEndMinutes = getTimeInMinutes(appointment.endTime);
-      
-      console.log(`Existing appointment: ${appointment.startTime}-${appointment.endTime} (${existingStartMinutes}-${existingEndMinutes} minutes)`);
       
       // Check if time ranges overlap
       const hasOverlap = (
@@ -323,12 +314,10 @@ export class AppointmentsService {
       );
       
       if (hasOverlap) {
-        console.log(`Conflict detected with appointment ID ${appointment._id}`);
         return true;
       }
     }
     
-    console.log('No conflicts found');
     return false;
   }
 }

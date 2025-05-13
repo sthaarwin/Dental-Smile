@@ -32,6 +32,7 @@ import RoleDashboardRedirect from "./components/RoleDashboardRedirect";
 import DentistManagement from "./pages/DentistManagement";
 import ServicesPage from "./pages/ServicesPage";
 import PatientDetail from "./pages/PatientDetail";
+import DentalResources from "./pages/DentalResources";
 
 // Initialize queryClient with secure configuration
 const queryClient = new QueryClient({
@@ -87,6 +88,7 @@ const AnimatedRoutes = () => {
             <Route path="/dentist-login" element={<DentistLogin />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/faq" element={<FAQ />} />
+            <Route path="/dental-resources" element={<DentalResources />} />
             
             {/* Role-based dashboard routing */}
             <Route path="/my-dashboard" element={<PrivateRoute><RoleDashboardRedirect /></PrivateRoute>} />

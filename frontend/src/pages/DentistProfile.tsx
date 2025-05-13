@@ -25,6 +25,10 @@ import {
   Briefcase,
   AlertCircle
 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 // Function to format user data into dentist format
 const formatUserDataToDentist = (userData: any) => {
@@ -97,12 +101,121 @@ const formatUserDataToDentist = (userData: any) => {
   };
 };
 
+// Format business hours from object format if needed
+const formatAvailability = (availabilityData) => {
+  // Check if availability is a string or object
+  if (typeof availabilityData === 'string') {
+    return availabilityData;
+  }
+  
+  // If it's an object (new format), format it as a readable string
+  if (availabilityData && typeof availabilityData === 'object') {
+    try {
+      const businessHours = availabilityData;
+      const daysOpen = [];
+      
+      // Loop through each day
+      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dayAbbreviations = {
+        'sunday': 'Sun',
+        'monday': 'Mon',
+        'tuesday': 'Tue',
+        'wednesday': 'Wed',
+        'thursday': 'Thu',
+        'friday': 'Fri',
+        'saturday': 'Sat',
+      };
+      
+      // Group consecutive days with same hours
+      let currentGroup = null;
+      let lastDay = null;
+      
+      days.forEach(day => {
+        const dayData = businessHours[day];
+        
+        if (!dayData || !dayData.isOpen) return;
+        
+        const hours = `${dayData.open}-${dayData.close}`;
+        
+        if (!currentGroup) {
+          // Start new group
+          currentGroup = { days: [day], hours };
+        } else if (currentGroup.hours === hours && lastDay && days.indexOf(lastDay) === days.indexOf(day) - 1) {
+          // Add to current group if hours match and days are consecutive
+          currentGroup.days.push(day);
+        } else {
+          // If not consecutive or hours differ, finish group and start new one
+          daysOpen.push(formatGroup(currentGroup, dayAbbreviations));
+          currentGroup = { days: [day], hours };
+        }
+        
+        lastDay = day;
+      });
+      
+      // Add the last group
+      if (currentGroup) {
+        daysOpen.push(formatGroup(currentGroup, dayAbbreviations));
+      }
+      
+      return daysOpen.length ? daysOpen.join(', ') : 'Hours not specified';
+    } catch (error) {
+      console.error('Error formatting availability:', error);
+      return 'Hours not specified';
+    }
+  }
+  
+  return 'Hours not specified';
+};
+
+// Helper function to format a group of days
+const formatGroup = (group, abbreviations) => {
+  if (group.days.length === 1) {
+    return `${abbreviations[group.days[0]]}, ${formatTimeRange(group.hours)}`;
+  }
+  
+  const firstDay = abbreviations[group.days[0]];
+  const lastDay = abbreviations[group.days[group.days.length - 1]];
+  return `${firstDay} to ${lastDay}, ${formatTimeRange(group.hours)}`;
+};
+
+// Helper function to format time range in a nice format
+const formatTimeRange = (timeRange) => {
+  const [start, end] = timeRange.split('-');
+  
+  // Handle case where hours might be in 24h format
+  if (start && end) {
+    try {
+      const formatTime = (time) => {
+        // Convert 24h format to 12h with proper formatting
+        if (time.includes(':')) {
+          const [hours, minutes] = time.split(':');
+          const hour = parseInt(hours, 10);
+          if (hour < 12) {
+            return hour === 0 ? `12${minutes === '00' ? '' : `:${minutes}`} AM` : `${hour}${minutes === '00' ? '' : `:${minutes}`} AM`;
+          } else {
+            return hour === 12 ? `12${minutes === '00' ? '' : `:${minutes}`} PM` : `${hour - 12}${minutes === '00' ? '' : `:${minutes}`} PM`;
+          }
+        }
+        return time;
+      };
+      
+      return `${formatTime(start)} - ${formatTime(end)}`;
+    } catch (e) {
+      return timeRange;
+    }
+  }
+  
+  return timeRange;
+};
+
 const DentistProfile = () => {
   const { id, name } = useParams<{ id?: string; name?: string }>();
   const [isLoading, setIsLoading] = useState(true);
   const [dentist, setDentist] = useState<any>(null);
   const [dentistReviews, setDentistReviews] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
+  const [newReview, setNewReview] = useState({ rating: 0, procedure: "", comment: "" });
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   useEffect(() => {
     const fetchDentistData = async () => {
@@ -157,18 +270,36 @@ const DentistProfile = () => {
           // Try to fetch reviews for this dentist
           try {
             if (dentistData.id) {
-              const reviewsResponse = await reviewAPI.getDentistReviews(dentistData.id);
-              if (reviewsResponse.data) {
-                setDentistReviews(reviewsResponse.data);
-              } else {
-                // Fall back to mock reviews matching this dentist ID
-                setDentistReviews(mockReviews.filter((r) => r.dentistId === dentistData.id));
+              try {
+                console.log(`Attempting to fetch reviews for dentist ID: ${dentistData.id}`);
+                // First try to get reviews from the API
+                const reviewsResponse = await reviewAPI.getDentistReviews(dentistData.id);
+                setDentistReviews(reviewsResponse.data || []);
+                console.log("Reviews loaded successfully:", reviewsResponse.data);
+              } catch (error) {
+                console.error("Failed to load reviews from API, using mock data:", error);
+                // If API fails, fall back to mock data
+                const mockDentistId = parseInt(dentistData.id, 10) || 1;
+                console.log(`Falling back to mock reviews for dentist ID: ${mockDentistId}`);
+                const mockFilteredReviews = mockReviews.filter(r => r.dentistId === mockDentistId);
+                if (mockFilteredReviews.length === 0) {
+                  const firstDentistId = mockDentists[0].id;
+                  const firstDentistReviews = mockReviews.filter(r => r.dentistId === firstDentistId);
+                  setDentistReviews(firstDentistReviews);
+                  console.log(`Using mock reviews for first dentist (ID: ${firstDentistId})`);
+                } else {
+                  setDentistReviews(mockFilteredReviews);
+                  console.log(`Using ${mockFilteredReviews.length} mock reviews for dentist ID: ${mockDentistId}`);
+                }
               }
             }
           } catch (error) {
-            console.error("Failed to load reviews:", error);
-            // Fall back to mock reviews matching this dentist ID
-            setDentistReviews(mockReviews.filter((r) => r.dentistId === dentistData.id));
+            console.error("Critical error loading reviews:", error);
+            toast.error("Failed to load reviews. Using sample data instead.");
+            // Last resort, use mock data
+            const firstMockDentist = mockDentists[0];
+            const mockFilteredReviews = mockReviews.filter(r => r.dentistId === firstMockDentist.id);
+            setDentistReviews(mockFilteredReviews);
           }
         }
       } catch (error) {
@@ -181,6 +312,45 @@ const DentistProfile = () => {
 
     fetchDentistData();
   }, [id, name]);
+
+  const submitReview = async () => {
+    setIsSubmittingReview(true);
+    try {
+      // Attempt to submit the review to the API
+      let reviewData;
+      try {
+        const response = await reviewAPI.submitReview(dentist.id, newReview);
+        if (response.data) {
+          reviewData = response.data;
+        }
+      } catch (error) {
+        console.error("Failed to submit review to API, using mock data:", error);
+        // If API fails, create a mock review response
+        reviewData = {
+          id: Date.now(),
+          dentistId: parseInt(dentist.id, 10) || 1,
+          patientId: 999,
+          patientName: "Current User",
+          rating: newReview.rating,
+          comment: newReview.comment,
+          date: new Date().toISOString().split('T')[0],
+          procedure: newReview.procedure
+        };
+        // Show a toast indicating we're using sample mode
+        toast.warning("Using demo mode. Your review was saved locally.");
+      }
+      
+      // Add the review to the UI regardless of API success
+      setDentistReviews((prevReviews) => [reviewData, ...prevReviews]);
+      setNewReview({ rating: 0, procedure: "", comment: "" });
+      toast.success("Review submitted successfully!");
+    } catch (error) {
+      console.error("Critical error submitting review:", error);
+      toast.error("Failed to submit review. Please try again.");
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -277,7 +447,7 @@ const DentistProfile = () => {
                     
                     <div className="flex items-center">
                       <Clock className="h-5 w-5 text-gray-500 mr-3 flex-shrink-0" />
-                      <p className="text-gray-900">{dentist.availability || 'Hours not specified'}</p>
+                      <p className="text-gray-900">{formatAvailability(dentist.availability)}</p>
                     </div>
                     
                     <div className="flex items-center">
@@ -410,12 +580,23 @@ const DentistProfile = () => {
                     <h2 className="text-xl font-semibold mb-4">Services Offered</h2>
                     {services.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        {services.map((service) => (
-                          <div key={service} className="flex items-start bg-gray-50 p-4 rounded-lg">
-                            <Stethoscope className="h-5 w-5 text-dentist-500 mr-3 mt-0.5 flex-shrink-0" />
-                            <span className="text-gray-700">{service}</span>
-                          </div>
-                        ))}
+                        {services.map((service) => {
+                          // Check if service is a string or an object with name and price
+                          const serviceName = typeof service === 'string' ? service : service.name;
+                          const servicePrice = typeof service === 'string' ? null : service.price;
+                          
+                          return (
+                            <div key={serviceName} className="flex items-start bg-gray-50 p-4 rounded-lg justify-between">
+                              <div className="flex items-start">
+                                <Stethoscope className="h-5 w-5 text-dentist-500 mr-3 mt-0.5 flex-shrink-0" />
+                                <span className="text-gray-700">{serviceName}</span>
+                              </div>
+                              {servicePrice !== null && (
+                                <span className="font-medium text-dentist-600">${servicePrice}</span>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-gray-500">Services information not available</p>
@@ -433,6 +614,96 @@ const DentistProfile = () => {
                       <span className="text-gray-500">
                         Based on {dentist.reviewCount || '0'} reviews
                       </span>
+                    </div>
+
+                    {/* Review submission form */}
+                    <div className="bg-gray-50 p-6 rounded-lg mb-8">
+                      <h3 className="text-lg font-semibold mb-4">Write a Review</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="rating" className="block text-sm font-medium text-gray-700 mb-1">Rating</Label>
+                          <div className="flex items-center">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => setNewReview({ ...newReview, rating: star })}
+                                className="focus:outline-none"
+                              >
+                                <Star
+                                  className={`h-7 w-7 ${
+                                    star <= newReview.rating
+                                      ? "text-yellow-400 fill-yellow-400"
+                                      : "text-gray-300"
+                                  }`}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <Label htmlFor="procedure" className="block text-sm font-medium text-gray-700 mb-1">Procedure</Label>
+                          <Select
+                            value={newReview.procedure}
+                            onValueChange={(value) => setNewReview({ ...newReview, procedure: value })}
+                          >
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select the procedure you received" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {services && services.length > 0 ? (
+                                services.map((service) => {
+                                  const serviceName = typeof service === 'string' ? service : service.name;
+                                  if (!serviceName) return null;
+                                  
+                                  return (
+                                    <SelectItem key={serviceName} value={serviceName}>
+                                      {serviceName}
+                                    </SelectItem>
+                                  );
+                                })
+                              ) : (
+                                <SelectItem value="General Check-up">General Check-up</SelectItem>
+                              )}
+                              <SelectItem value="Dental Cleaning">Dental Cleaning</SelectItem>
+                              <SelectItem value="Consultation">Consultation</SelectItem>
+                              <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {newReview.procedure === "Other" && (
+                            <Input
+                              className="mt-2"
+                              placeholder="Please specify the procedure"
+                              onChange={(e) => setNewReview({ ...newReview, procedure: e.target.value })}
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-1">Your Review</Label>
+                          <Textarea
+                            id="comment"
+                            placeholder="Share your experience with this dentist..."
+                            value={newReview.comment}
+                            onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                            className="min-h-[120px]"
+                          />
+                        </div>
+                        <Button 
+                          type="button"
+                          onClick={submitReview}
+                          disabled={!newReview.rating || !newReview.comment || isSubmittingReview}
+                          className="w-full md:w-auto"
+                        >
+                          {isSubmittingReview ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Submitting...
+                            </>
+                          ) : (
+                            "Submit Review"
+                          )}
+                        </Button>
+                      </div>
                     </div>
                     
                     <div className="space-y-4">

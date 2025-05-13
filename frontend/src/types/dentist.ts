@@ -1,3 +1,24 @@
+export interface BusinessHour {
+  open: string;
+  close: string;
+  isOpen: boolean;
+}
+
+export interface BusinessHours {
+  monday: BusinessHour;
+  tuesday: BusinessHour;
+  wednesday: BusinessHour;
+  thursday: BusinessHour;
+  friday: BusinessHour;
+  saturday: BusinessHour;
+  sunday: BusinessHour;
+  [key: string]: BusinessHour;
+}
+
+export interface ServiceWithPrice {
+  name: string;
+  price: number;
+}
 
 export interface Dentist {
   id: number;
@@ -14,12 +35,12 @@ export interface Dentist {
   bio: string;
   education: string[];
   certifications: string[];
-  services: string[];
+  services: string[] | ServiceWithPrice[];
   languages: string[];
   experience: number;
   rating: number;
   reviewCount: number;
-  availability: string;
+  availability: string | BusinessHours;
   acceptingNewPatients: boolean;
   insuranceAccepted: string[];
 }
