@@ -33,6 +33,7 @@ import DentistManagement from "./pages/DentistManagement";
 import ServicesPage from "./pages/ServicesPage";
 import PatientDetail from "./pages/PatientDetail";
 import DentalResources from "./pages/DentalResources";
+import { ChatProvider } from "./contexts/ChatContext";
 
 // Initialize queryClient with secure configuration
 const queryClient = new QueryClient({
@@ -118,12 +119,16 @@ const AnimatedRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Router>
-        <ScrollToTop />
-        <AnimatedRoutes />
-        <Toaster />
-        <Sonner />
-      </Router>
+      <ChatProvider>
+        <Router>
+          <div className="min-h-screen bg-background font-sans antialiased">
+            <ScrollToTop />
+            <AnimatedRoutes />
+            <Toaster />
+            <Sonner />
+          </div>
+        </Router>
+      </ChatProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

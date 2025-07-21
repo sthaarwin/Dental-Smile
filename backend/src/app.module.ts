@@ -10,6 +10,7 @@ import { ServicesModule } from './services/services.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { DentistsModule } from './dentists/dentists.module';
 import { SchedulesModule } from './schedules/schedules.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { SchedulesModule } from './schedules/schedules.module';
     AppointmentsModule,
     DentistsModule,
     SchedulesModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],

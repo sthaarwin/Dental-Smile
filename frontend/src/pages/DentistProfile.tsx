@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ReviewCard from "@/components/ReviewCard";
+import Chat from "@/components/Chat";
 import { mockDentists } from "@/data/mockDentists";
 import { mockReviews } from "@/data/mockReviews";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { dentistAPI, reviewAPI } from "@/services/api";
 import { toast } from "sonner";
+import { useChat } from "@/contexts/ChatContext";
 import {
   Star,
   MapPin,
@@ -23,7 +25,8 @@ import {
   Stethoscope,
   Languages,
   Briefcase,
-  AlertCircle
+  AlertCircle,
+  MessageCircle
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -216,6 +219,43 @@ const DentistProfile = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [newReview, setNewReview] = useState({ rating: 0, procedure: "", comment: "" });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  
+  // Chat functionality
+  const { createConversation } = useChat();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Get current user info
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setCurrentUser(JSON.parse(userData));
+    }
+  }, []);
+
+  // Function to start a chat with the dentist
+  const handleStartChat = async () => {
+    if (!currentUser || !dentist) {
+      toast.error('Please log in to start a conversation');
+      return;
+    }
+
+    if (currentUser.role === 'dentist' && currentUser.id === dentist.id) {
+      toast.error('You cannot start a conversation with yourself');
+      return;
+    }
+
+    try {
+      const conversation = await createConversation(dentist.id);
+      setSelectedConversation(conversation._id);
+      setIsChatOpen(true);
+      toast.success(`Started conversation with Dr. ${dentist.lastName}`);
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      toast.error('Failed to start conversation. Please try again.');
+    }
+  };
 
   useEffect(() => {
     const fetchDentistData = async () => {
@@ -465,10 +505,22 @@ const DentistProfile = () => {
                     </div>
                   </div>
                   
-                  <div className="mt-6">
+                  <div className="mt-6 space-y-3">
                     <Button className="w-full" asChild>
                       <Link to={`/book/${dentist.id}`}>Book Appointment</Link>
                     </Button>
+                    
+                    {/* Start Chat Button */}
+                    {currentUser && currentUser.role !== 'dentist' && (
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={handleStartChat}
+                      >
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        Start Chat with Dr. {dentist.lastName}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -723,6 +775,15 @@ const DentistProfile = () => {
         </div>
       </div>
 
+      {/* Chat component - always show in DentistProfile */}
+      <div>
+        <Chat 
+          isOpen={isChatOpen} 
+          onClose={() => setIsChatOpen(false)} 
+          selectedConversation={selectedConversation}
+        />
+        
+      </div>
     </div>
   );
 };
