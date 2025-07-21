@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ReviewCard from "@/components/ReviewCard";
 import Chat from "@/components/Chat";
+import ChatErrorBoundary from "@/components/ChatErrorBoundary";
 import { mockDentists } from "@/data/mockDentists";
 import { mockReviews } from "@/data/mockReviews";
 import { Button } from "@/components/ui/button";
@@ -777,12 +778,13 @@ const DentistProfile = () => {
 
       {/* Chat component - always show in DentistProfile */}
       <div>
-        <Chat 
-          isOpen={isChatOpen} 
-          onClose={() => setIsChatOpen(false)} 
-          selectedConversation={selectedConversation}
-        />
-        
+        <ChatErrorBoundary>
+          <Chat 
+            isOpen={isChatOpen} 
+            onClose={() => setIsChatOpen(false)} 
+            selectedConversation={selectedConversation}
+          />
+        </ChatErrorBoundary>
       </div>
     </div>
   );

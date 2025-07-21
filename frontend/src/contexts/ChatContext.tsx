@@ -56,11 +56,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) return;
+    if (!token) {
+      console.log('No token found, skipping chat connection');
+      return;
+    }
 
+    console.log('Initializing chat connection...');
     const newSocket = io('http://localhost:8000/chat', {
       auth: { token },
       transports: ['websocket', 'polling'],
+      timeout: 20000,
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      forceNew: true,
     });
 
     newSocket.on('connect', () => {
@@ -68,12 +77,18 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       setIsConnected(true);
     });
 
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from chat server');
+    newSocket.on('disconnect', (reason) => {
+      console.log('Disconnected from chat server:', reason);
+      setIsConnected(false);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('Chat connection error:', error);
       setIsConnected(false);
     });
 
     newSocket.on('newMessage', (message: Message) => {
+      console.log('Received new message:', message);
       setMessages(prev => ({
         ...prev,
         [message.conversationId]: [...(prev[message.conversationId] || []), message]
@@ -104,6 +119,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     setSocket(newSocket);
 
     return () => {
+      console.log('Cleaning up chat connection');
       newSocket.close();
     };
   }, []);

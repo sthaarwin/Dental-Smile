@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getDashboardUrlByRole } from "@/lib/utils";
 import Chat from "@/components/Chat";
+import ChatErrorBoundary from "@/components/ChatErrorBoundary";
 import { useChat } from "@/contexts/ChatContext";
 
 const Navbar = () => {
@@ -20,7 +21,16 @@ const Navbar = () => {
   const token = localStorage.getItem('token');
   const user = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null;
   const navigate = useNavigate();
-  const { isConnected, unreadCount } = useChat();
+  
+  // Safely get chat context with error handling
+  let chatContext = { isConnected: false, unreadCount: 0 };
+  try {
+    chatContext = useChat();
+  } catch (error) {
+    console.warn('Chat context not available:', error);
+  }
+  
+  const { isConnected, unreadCount } = chatContext;
 
   const handleLogout = () => {
     // Start the navigation first to trigger the exit animation
@@ -318,10 +328,12 @@ const Navbar = () => {
       </nav>
 
       {/* Chat Component */}
-      <Chat 
-        isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)} 
-      />
+      <ChatErrorBoundary>
+        <Chat 
+          isOpen={isChatOpen} 
+          onClose={() => setIsChatOpen(false)} 
+        />
+      </ChatErrorBoundary>
     </>
   );
 };

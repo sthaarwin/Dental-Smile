@@ -100,11 +100,18 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
   };
 
   const getOtherParticipant = (conversation: any) => {
+    if (!conversation || !conversation.participants || !currentUser) {
+      return null;
+    }
     return conversation.participants.find((p: any) => p._id !== currentUser?.id);
   };
 
   const formatMessageTime = (timestamp: string) => {
-    return format(new Date(timestamp), 'HH:mm');
+    try {
+      return format(new Date(timestamp), 'HH:mm');
+    } catch (error) {
+      return '';
+    }
   };
 
   if (!isOpen) return null;

@@ -42,7 +42,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         return;
       }
 
-      const payload = this.jwtService.verify(token);
+      // Use the JWT service with proper options
+      const payload = this.jwtService.verify(token, {
+        secret: process.env.JWT_SECRET || 'your-secret-key',
+      });
       const userId = payload.sub;
       const userRole = payload.role;
 
