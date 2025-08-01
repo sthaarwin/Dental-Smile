@@ -3,6 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import ReviewCard from "@/components/ReviewCard";
+import Chat from "@/components/Chat";
+import ChatErrorBoundary from "@/components/ChatErrorBoundary";
 import { mockDentists } from "@/data/mockDentists";
 import { mockReviews } from "@/data/mockReviews";
 import { Button } from "@/components/ui/button";
@@ -10,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
 import { dentistAPI, reviewAPI } from "@/services/api";
 import { toast } from "sonner";
+import { useChat } from "@/contexts/ChatContext";
 import {
   Star,
   MapPin,
@@ -23,7 +26,8 @@ import {
   Stethoscope,
   Languages,
   Briefcase,
-  AlertCircle
+  AlertCircle,
+  MessageCircle
 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -216,6 +220,49 @@ const DentistProfile = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [newReview, setNewReview] = useState({ rating: 0, procedure: "", comment: "" });
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [reviewEligibility, setReviewEligibility] = useState<{
+    canReview: boolean;
+    hasExistingReview: boolean;
+    message: string;
+  } | null>(null);
+  const [isCheckingEligibility, setIsCheckingEligibility] = useState(false);
+  
+  // Chat functionality
+  const { createConversation } = useChat();
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Get current user info
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setCurrentUser(JSON.parse(userData));
+    }
+  }, []);
+
+  // Function to start a chat with the dentist
+  const handleStartChat = async () => {
+    if (!currentUser || !dentist) {
+      toast.error('Please log in to start a conversation');
+      return;
+    }
+
+    if (currentUser.role === 'dentist' && currentUser.id === dentist.id) {
+      toast.error('You cannot start a conversation with yourself');
+      return;
+    }
+
+    try {
+      const conversation = await createConversation(dentist.id);
+      setSelectedConversation(conversation._id);
+      setIsChatOpen(true);
+      toast.success(`Started conversation with Dr. ${dentist.lastName}`);
+    } catch (error) {
+      console.error('Error starting conversation:', error);
+      toast.error('Failed to start conversation. Please try again.');
+    }
+  };
 
   useEffect(() => {
     const fetchDentistData = async () => {
@@ -271,31 +318,24 @@ const DentistProfile = () => {
           try {
             if (dentistData.id) {
               try {
-                console.log(`Attempting to fetch reviews for dentist ID: ${dentistData.id}`);
-                // First try to get reviews from the API
+                // First check if the dentist exists before fetching reviews
                 const reviewsResponse = await reviewAPI.getDentistReviews(dentistData.id);
                 setDentistReviews(reviewsResponse.data || []);
-                console.log("Reviews loaded successfully:", reviewsResponse.data);
               } catch (error) {
-                console.error("Failed to load reviews from API, using mock data:", error);
                 // If API fails, fall back to mock data
                 const mockDentistId = parseInt(dentistData.id, 10) || 1;
-                console.log(`Falling back to mock reviews for dentist ID: ${mockDentistId}`);
                 const mockFilteredReviews = mockReviews.filter(r => r.dentistId === mockDentistId);
                 if (mockFilteredReviews.length === 0) {
                   const firstDentistId = mockDentists[0].id;
                   const firstDentistReviews = mockReviews.filter(r => r.dentistId === firstDentistId);
                   setDentistReviews(firstDentistReviews);
-                  console.log(`Using mock reviews for first dentist (ID: ${firstDentistId})`);
                 } else {
                   setDentistReviews(mockFilteredReviews);
-                  console.log(`Using ${mockFilteredReviews.length} mock reviews for dentist ID: ${mockDentistId}`);
                 }
               }
             }
           } catch (error) {
             console.error("Critical error loading reviews:", error);
-            toast.error("Failed to load reviews. Using sample data instead.");
             // Last resort, use mock data
             const firstMockDentist = mockDentists[0];
             const mockFilteredReviews = mockReviews.filter(r => r.dentistId === firstMockDentist.id);
@@ -312,6 +352,31 @@ const DentistProfile = () => {
 
     fetchDentistData();
   }, [id, name]);
+
+  // Check review eligibility when reviews tab is accessed
+  useEffect(() => {
+    const checkReviewEligibility = async () => {
+      if (activeTab === 'reviews' && currentUser && dentist && currentUser.role === 'patient') {
+        setIsCheckingEligibility(true);
+        try {
+          const response = await reviewAPI.canReviewDentist(dentist.id);
+          setReviewEligibility(response.data);
+        } catch (error) {
+          console.error('Error checking review eligibility:', error);
+          // If the API call fails, allow review (fallback to old behavior)
+          setReviewEligibility({
+            canReview: true,
+            hasExistingReview: false,
+            message: 'Review eligibility check failed. You may proceed with submitting a review.'
+          });
+        } finally {
+          setIsCheckingEligibility(false);
+        }
+      }
+    };
+
+    checkReviewEligibility();
+  }, [activeTab, currentUser, dentist]);
 
   const submitReview = async () => {
     setIsSubmittingReview(true);
@@ -465,10 +530,22 @@ const DentistProfile = () => {
                     </div>
                   </div>
                   
-                  <div className="mt-6">
+                  <div className="mt-6 space-y-3">
                     <Button className="w-full" asChild>
                       <Link to={`/book/${dentist.id}`}>Book Appointment</Link>
                     </Button>
+                    
+                    {/* Start Chat Button */}
+                    {currentUser && currentUser.role !== 'dentist' && (
+                      <Button 
+                        variant="outline" 
+                        className="w-full"
+                        onClick={handleStartChat}
+                      >
+                        <MessageCircle className="h-4 w-4 mr-2" />
+                        Start Chat with Dr. {dentist.lastName}
+                      </Button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -616,100 +693,161 @@ const DentistProfile = () => {
                       </span>
                     </div>
 
-                    {/* Review submission form */}
-                    <div className="bg-gray-50 p-6 rounded-lg mb-8">
-                      <h3 className="text-lg font-semibold mb-4">Write a Review</h3>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="rating" className="block text-sm font-medium text-gray-700 mb-1">Rating</Label>
-                          <div className="flex items-center">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <button
-                                key={star}
-                                type="button"
-                                onClick={() => setNewReview({ ...newReview, rating: star })}
-                                className="focus:outline-none"
-                              >
-                                <Star
-                                  className={`h-7 w-7 ${
-                                    star <= newReview.rating
-                                      ? "text-yellow-400 fill-yellow-400"
-                                      : "text-gray-300"
-                                  }`}
+                    {/* Review submission form - only show if user is eligible */}
+                    {currentUser && currentUser.role === 'patient' ? (
+                      <div className="bg-gray-50 p-6 rounded-lg mb-8">
+                        <h3 className="text-lg font-semibold mb-4">Write a Review</h3>
+                        
+                        {isCheckingEligibility ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 text-dentist-600 animate-spin mr-2" />
+                            <p className="text-gray-600">Checking review eligibility...</p>
+                          </div>
+                        ) : reviewEligibility ? (
+                          !reviewEligibility.canReview || reviewEligibility.hasExistingReview ? (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                              <div className="flex items-start">
+                                <AlertCircle className="h-5 w-5 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
+                                <div>
+                                  <h4 className="font-medium text-yellow-800 mb-1">
+                                    {reviewEligibility.hasExistingReview 
+                                      ? 'Review Already Submitted' 
+                                      : 'Review Not Available'}
+                                  </h4>
+                                  <p className="text-yellow-700 text-sm">
+                                    {reviewEligibility.message}
+                                  </p>
+                                  {!reviewEligibility.canReview && (
+                                    <Link to={`/book/${dentist.id}`} className="inline-block mt-3">
+                                      <Button size="sm" variant="outline">
+                                        Book an Appointment
+                                      </Button>
+                                    </Link>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                                <div className="flex items-center">
+                                  <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                                  <p className="text-green-700 text-sm">{reviewEligibility.message}</p>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <Label htmlFor="rating" className="block text-sm font-medium text-gray-700 mb-1">Rating</Label>
+                                <div className="flex items-center">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                      key={star}
+                                      type="button"
+                                      onClick={() => setNewReview({ ...newReview, rating: star })}
+                                      className="focus:outline-none"
+                                    >
+                                      <Star
+                                        className={`h-7 w-7 ${
+                                          star <= newReview.rating
+                                            ? "text-yellow-400 fill-yellow-400"
+                                            : "text-gray-300"
+                                        }`}
+                                      />
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <Label htmlFor="procedure" className="block text-sm font-medium text-gray-700 mb-1">Procedure</Label>
+                                <Select
+                                  value={newReview.procedure}
+                                  onValueChange={(value) => setNewReview({ ...newReview, procedure: value })}
+                                >
+                                  <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="Select the procedure you received" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {services && services.length > 0 ? (
+                                      services.map((service) => {
+                                        const serviceName = typeof service === 'string' ? service : service.name;
+                                        if (!serviceName) return null;
+                                        
+                                        return (
+                                          <SelectItem key={serviceName} value={serviceName}>
+                                            {serviceName}
+                                          </SelectItem>
+                                        );
+                                      })
+                                    ) : (
+                                      <SelectItem value="General Check-up">General Check-up</SelectItem>
+                                    )}
+                                    <SelectItem value="Dental Cleaning">Dental Cleaning</SelectItem>
+                                    <SelectItem value="Consultation">Consultation</SelectItem>
+                                    <SelectItem value="Other">Other</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                {newReview.procedure === "Other" && (
+                                  <Input
+                                    className="mt-2"
+                                    placeholder="Please specify the procedure"
+                                    onChange={(e) => setNewReview({ ...newReview, procedure: e.target.value })}
+                                  />
+                                )}
+                              </div>
+                              <div>
+                                <Label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-1">Your Review</Label>
+                                <Textarea
+                                  id="comment"
+                                  placeholder="Share your experience with this dentist..."
+                                  value={newReview.comment}
+                                  onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                                  className="min-h-[120px]"
                                 />
-                              </button>
-                            ))}
+                              </div>
+                              <Button 
+                                type="button"
+                                onClick={submitReview}
+                                disabled={!newReview.rating || !newReview.comment || isSubmittingReview}
+                                className="w-full md:w-auto"
+                              >
+                                {isSubmittingReview ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Submitting...
+                                  </>
+                                ) : (
+                                  "Submit Review"
+                                )}
+                              </Button>
+                            </div>
+                          )
+                        ) : null}
+                      </div>
+                    ) : currentUser && currentUser.role === 'dentist' ? (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+                        <div className="flex items-center">
+                          <AlertCircle className="h-5 w-5 text-blue-600 mr-3" />
+                          <p className="text-blue-700">Dentists cannot leave reviews for other dentists.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-8">
+                        <div className="flex items-center">
+                          <AlertCircle className="h-5 w-5 text-gray-600 mr-3" />
+                          <div>
+                            <p className="text-gray-700 mb-2">Please log in to leave a review.</p>
+                            <Link to="/login">
+                              <Button size="sm">Log In</Button>
+                            </Link>
                           </div>
                         </div>
-                        <div>
-                          <Label htmlFor="procedure" className="block text-sm font-medium text-gray-700 mb-1">Procedure</Label>
-                          <Select
-                            value={newReview.procedure}
-                            onValueChange={(value) => setNewReview({ ...newReview, procedure: value })}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select the procedure you received" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {services && services.length > 0 ? (
-                                services.map((service) => {
-                                  const serviceName = typeof service === 'string' ? service : service.name;
-                                  if (!serviceName) return null;
-                                  
-                                  return (
-                                    <SelectItem key={serviceName} value={serviceName}>
-                                      {serviceName}
-                                    </SelectItem>
-                                  );
-                                })
-                              ) : (
-                                <SelectItem value="General Check-up">General Check-up</SelectItem>
-                              )}
-                              <SelectItem value="Dental Cleaning">Dental Cleaning</SelectItem>
-                              <SelectItem value="Consultation">Consultation</SelectItem>
-                              <SelectItem value="Other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {newReview.procedure === "Other" && (
-                            <Input
-                              className="mt-2"
-                              placeholder="Please specify the procedure"
-                              onChange={(e) => setNewReview({ ...newReview, procedure: e.target.value })}
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <Label htmlFor="comment" className="block text-sm font-medium text-gray-700 mb-1">Your Review</Label>
-                          <Textarea
-                            id="comment"
-                            placeholder="Share your experience with this dentist..."
-                            value={newReview.comment}
-                            onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
-                            className="min-h-[120px]"
-                          />
-                        </div>
-                        <Button 
-                          type="button"
-                          onClick={submitReview}
-                          disabled={!newReview.rating || !newReview.comment || isSubmittingReview}
-                          className="w-full md:w-auto"
-                        >
-                          {isSubmittingReview ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Submitting...
-                            </>
-                          ) : (
-                            "Submit Review"
-                          )}
-                        </Button>
                       </div>
-                    </div>
+                    )}
                     
                     <div className="space-y-4">
                       {dentistReviews.length > 0 ? (
                         dentistReviews.map((review) => (
-                          <ReviewCard key={review.id} review={review} />
+                          <ReviewCard key={review.id || review._id || `review-${Math.random()}`} review={review} />
                         ))
                       ) : (
                         <p className="text-gray-500">No reviews yet. Be the first to leave a review!</p>
@@ -723,6 +861,16 @@ const DentistProfile = () => {
         </div>
       </div>
 
+      {/* Chat component - always show in DentistProfile */}
+      <div>
+        <ChatErrorBoundary>
+          <Chat 
+            isOpen={isChatOpen} 
+            onClose={() => setIsChatOpen(false)} 
+            selectedConversation={selectedConversation}
+          />
+        </ChatErrorBoundary>
+      </div>
     </div>
   );
 };

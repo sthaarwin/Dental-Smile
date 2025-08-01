@@ -2,11 +2,13 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Review, ReviewDocument } from './schemas/review.schema';
+import { Appointment, AppointmentDocument } from '../appointments/schemas/appointment.schema';
 
 @Injectable()
 export class ReviewsService {
   constructor(
-    @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>
+    @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>,
+    @InjectModel(Appointment.name) private appointmentModel: Model<AppointmentDocument>
   ) {}
 
   async create(reviewData: any): Promise<Review> {
@@ -121,5 +123,27 @@ export class ReviewsService {
     }
     
     return deletedReview;
+  }
+
+  async validatePatientCanReview(patientId: string, dentistId: string): Promise<boolean> {
+    // Check if the patient has had at least one appointment with this dentist
+    // Allow reviews for both scheduled and completed appointments
+    const validAppointments = await this.appointmentModel.find({
+      patient: patientId,
+      dentist: dentistId,
+      status: { $in: ['completed', 'scheduled'] } // Allow reviews for completed or scheduled appointments
+    }).exec();
+
+    return validAppointments.length > 0;
+  }
+
+  async checkExistingReview(patientId: string, dentistId: string): Promise<boolean> {
+    // Check if the patient has already reviewed this dentist
+    const existingReview = await this.reviewModel.findOne({
+      patient: patientId,
+      dentist: dentistId
+    }).exec();
+
+    return existingReview !== null;
   }
 }

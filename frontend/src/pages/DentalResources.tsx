@@ -160,8 +160,7 @@ const DentalResources = () => {
         </section>
       </main>
 
-      <Footer />
-    </div>
+     </div>
   );
 };
 
