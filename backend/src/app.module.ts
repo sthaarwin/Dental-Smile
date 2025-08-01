@@ -12,6 +12,7 @@ import { DentistsModule } from './dentists/dentists.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { ChatModule } from './chat/chat.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { SeederModule } from './seeders/seeder.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ReviewsModule } from './reviews/reviews.module';
     SchedulesModule,
     ChatModule,
     ReviewsModule,
+    SeederModule,
   ],
   controllers: [AppController],
   providers: [AppService],
