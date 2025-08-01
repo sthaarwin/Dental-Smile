@@ -129,6 +129,66 @@ export class AppointmentsController {
     return this.appointmentsService.update(id, updateAppointmentDto);
   }
 
+  // Add reschedule endpoint for patients
+  @Put(':id/reschedule')
+  async rescheduleAppointment(
+    @Param('id') id: string,
+    @Body() rescheduleData: { date: string; time?: string; startTime?: string; endTime?: string },
+    @Request() req
+  ): Promise<Appointment> {
+    // Allow patients to reschedule their own appointments
+    const appointment = await this.appointmentsService.findOne(id);
+    
+    // Check if the user is the patient who owns this appointment
+    // Handle both populated and non-populated patient field
+    const patientId = typeof appointment.patient === 'object' ? 
+      appointment.patient._id || appointment.patient.id : 
+      appointment.patient;
+      
+    if (req.user.role === 'patient' && req.user.userId !== patientId.toString()) {
+      throw new BadRequestException('You can only reschedule your own appointments');
+    }
+    
+    const updateData: any = {
+      date: rescheduleData.date,
+    };
+    
+    // Handle both 'time' and 'startTime' for backward compatibility
+    if (rescheduleData.startTime) {
+      updateData.startTime = rescheduleData.startTime;
+    } else if (rescheduleData.time) {
+      updateData.startTime = rescheduleData.time;
+    }
+    
+    if (rescheduleData.endTime) {
+      updateData.endTime = rescheduleData.endTime;
+    }
+    
+    return this.appointmentsService.update(id, updateData);
+  }
+
+  // Add cancel endpoint for patients
+  @Patch(':id/cancel')
+  async cancelAppointment(
+    @Param('id') id: string,
+    @Request() req
+  ): Promise<Appointment> {
+    // Allow patients to cancel their own appointments
+    const appointment = await this.appointmentsService.findOne(id);
+    
+    // Check if the user is the patient who owns this appointment
+    // Handle both populated and non-populated patient field
+    const patientId = typeof appointment.patient === 'object' ? 
+      appointment.patient._id || appointment.patient.id : 
+      appointment.patient;
+      
+    if (req.user.role === 'patient' && req.user.userId !== patientId.toString()) {
+      throw new BadRequestException('You can only cancel your own appointments');
+    }
+    
+    return this.appointmentsService.updateStatus(id, 'cancelled');
+  }
+
   @Patch(':id/status')
   @UseGuards(RolesGuard)
   @Roles('admin', 'dentist')

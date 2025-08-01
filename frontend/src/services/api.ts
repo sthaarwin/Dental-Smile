@@ -63,9 +63,9 @@ export const appointmentAPI = {
     api.get('/appointments/date', { params: { date } }),
   myAppointments: () => api.get('/appointments/my-appointments'),
   rescheduleAppointment: (id: number | string, data: any) => 
-    api.put(`/appointments/${id}/reschedule/`, data),
+    api.put(`/appointments/${id}/reschedule`, data),
   cancelAppointment: (id: number | string) => 
-    api.delete(`/appointments/${id}/`),
+    api.patch(`/appointments/${id}/cancel`),
   updateAppointmentStatus: (id: number | string, status: string) => {
     if (!id) {
       console.error("Cannot update appointment status: appointment ID is undefined");
