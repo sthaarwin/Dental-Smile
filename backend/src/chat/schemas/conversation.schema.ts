@@ -16,6 +16,10 @@ export class Conversation {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  // Track which users have "deleted" (hidden) this conversation
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })
+  hiddenFrom: Types.ObjectId[];
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);

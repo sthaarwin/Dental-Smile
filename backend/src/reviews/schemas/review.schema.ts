@@ -7,9 +7,6 @@ export type ReviewDocument = Review & Document;
 
 @Schema({ timestamps: true })
 export class Review {
-  @Prop()
-  _id: MongooseSchema.Types.ObjectId;
-
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   patient: User;
 

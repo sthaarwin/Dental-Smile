@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Delete } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -38,5 +38,13 @@ export class ChatController {
   async getUnreadMessageCount(@GetUser() user: any) {
     const count = await this.chatService.getUnreadMessageCount(user.id);
     return { count };
+  }
+
+  @Delete('conversations/:id')
+  async deleteConversation(
+    @Param('id') conversationId: string,
+    @GetUser() user: any
+  ) {
+    return this.chatService.deleteConversation(conversationId, user.id);
   }
 }

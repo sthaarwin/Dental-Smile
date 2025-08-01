@@ -37,6 +37,7 @@ interface ChatContextType {
   leaveConversation: (conversationId: string) => void;
   markAsRead: (conversationId: string, messageId: string) => void;
   createConversation: (participantId: string) => Promise<Conversation>;
+  deleteConversation: (conversationId: string) => Promise<void>;
   fetchConversations: () => void;
   fetchMessages: (conversationId: string) => void;
 }
@@ -56,12 +57,16 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    if (!token) {
-      console.log('No token found, skipping chat connection');
+    const user = localStorage.getItem('user');
+    
+    if (!token || !user) {
+      console.log('No token or user found, skipping chat connection');
       return;
     }
 
-    console.log('Initializing chat connection...');
+    const userData = JSON.parse(user);
+    console.log(`Initializing chat connection for ${userData.role}: ${userData.name}`);
+    
     const newSocket = io('http://localhost:8000/chat', {
       auth: { token },
       transports: ['websocket', 'polling'],
@@ -73,17 +78,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     });
 
     newSocket.on('connect', () => {
-      console.log('Connected to chat server');
+      console.log(`Chat server connected for ${userData.role}: ${userData.name}`);
       setIsConnected(true);
     });
 
     newSocket.on('disconnect', (reason) => {
-      console.log('Disconnected from chat server:', reason);
+      console.log(`Chat server disconnected for ${userData.role}: ${userData.name}, reason:`, reason);
       setIsConnected(false);
     });
 
     newSocket.on('connect_error', (error) => {
-      console.error('Chat connection error:', error);
+      console.error(`Chat connection error for ${userData.role}: ${userData.name}:`, error);
       setIsConnected(false);
     });
 
@@ -119,20 +124,57 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     setSocket(newSocket);
 
     return () => {
-      console.log('Cleaning up chat connection');
+      console.log(`Cleaning up chat connection for ${userData.role}: ${userData.name}`);
       newSocket.close();
     };
   }, []);
 
   const sendMessage = (conversationId: string, receiverId: string, message: string) => {
-    if (socket && isConnected) {
-      socket.emit('sendMessage', {
-        conversationId,
-        receiverId,
-        message,
-        messageType: 'text',
-      });
+    console.log('ChatContext sendMessage called:', {
+      conversationId,
+      receiverId,
+      message,
+      socketExists: !!socket,
+      isConnected
+    });
+
+    if (!socket) {
+      console.error('Socket not available');
+      return;
     }
+
+    if (!isConnected) {
+      console.error('Socket not connected');
+      return;
+    }
+
+    const messageData = {
+      conversationId,
+      receiverId,
+      message,
+      messageType: 'text',
+    };
+
+    console.log('Emitting sendMessage event:', messageData);
+    socket.emit('sendMessage', messageData);
+
+    // Add the message optimistically to the UI
+    const tempMessage = {
+      id: `temp-${Date.now()}`,
+      conversationId,
+      senderId: JSON.parse(localStorage.getItem('user') || '{}').id,
+      receiverId,
+      message,
+      messageType: 'text' as const,
+      timestamp: new Date().toISOString(),
+      senderRole: JSON.parse(localStorage.getItem('user') || '{}').role,
+      isRead: false,
+    };
+
+    setMessages(prev => ({
+      ...prev,
+      [conversationId]: [...(prev[conversationId] || []), tempMessage]
+    }));
   };
 
   const joinConversation = (conversationId: string) => {
@@ -155,6 +197,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
   const createConversation = async (participantId: string): Promise<Conversation> => {
     const token = localStorage.getItem('token');
+    console.log('Creating conversation with participant ID:', participantId);
+    console.log('Token exists:', !!token);
+    
     const response = await fetch('http://localhost:8000/api/chat/conversation', {
       method: 'POST',
       headers: {
@@ -164,27 +209,74 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       body: JSON.stringify({ participantId }),
     });
 
+    console.log('Create conversation response status:', response.status);
+    
     if (!response.ok) {
-      throw new Error('Failed to create conversation');
+      const errorText = await response.text();
+      console.error('Failed to create conversation:', response.status, errorText);
+      throw new Error(`Failed to create conversation: ${response.status}`);
     }
 
-    return response.json();
+    const conversationData = await response.json();
+    console.log('Created conversation:', conversationData);
+    
+    // Check if conversation already exists in local state
+    const existingIndex = conversations.findIndex(conv => conv._id === conversationData._id);
+    
+    if (existingIndex >= 0) {
+      // Update existing conversation
+      setConversations(prev => 
+        prev.map((conv, index) => 
+          index === existingIndex ? conversationData : conv
+        )
+      );
+    } else {
+      // Add new conversation to the beginning of the list
+      setConversations(prev => [conversationData, ...prev]);
+    }
+    
+    return conversationData;
+  };
+
+  const deleteConversation = async (conversationId: string): Promise<void> => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`http://localhost:8000/api/chat/conversations/${conversationId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to delete conversation');
+    }
+
+    setConversations(prev => prev.filter(conv => conv._id !== conversationId));
+    setMessages(prev => {
+      const updated = { ...prev };
+      delete updated[conversationId];
+      return updated;
+    });
   };
 
   const fetchConversations = async () => {
     const token = localStorage.getItem('token');
+    
     try {
       const response = await fetch('http://localhost:8000/api/chat/conversations', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
-
+      
       if (response.ok) {
         const data = await response.json();
         setConversations(data);
+      } else {
+        console.error('Failed to fetch conversations:', response.status, response.statusText);
       }
     } catch (error) {
+
       console.error('Failed to fetch conversations:', error);
     }
   };
@@ -221,6 +313,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     leaveConversation,
     markAsRead,
     createConversation,
+    deleteConversation,
     fetchConversations,
     fetchMessages,
   };

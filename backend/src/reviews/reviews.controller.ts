@@ -52,7 +52,7 @@ export class ReviewsController {
     
     // Format the review to match the frontend expectations
     return {
-      id: newReview._id,
+      id: (newReview as any)._id,
       dentistId: dentistId,
       patientId: '999999999999999999999999',
       patientName: reviewData.patientName || 'Demo User',
@@ -71,10 +71,28 @@ export class ReviewsController {
     @Body() reviewData: any,
     @Request() req
   ) {
+    const patientId = req.user.userId;
+
+    // Validate that the patient has had appointments with this dentist
+    const canReview = await this.reviewsService.validatePatientCanReview(patientId, dentistId);
+    if (!canReview) {
+      throw new BadRequestException(
+        'You can only review dentists you have had completed appointments with. Please book and complete an appointment first.'
+      );
+    }
+
+    // Check if patient has already reviewed this dentist
+    const hasExistingReview = await this.reviewsService.checkExistingReview(patientId, dentistId);
+    if (hasExistingReview) {
+      throw new BadRequestException(
+        'You have already reviewed this dentist. You can only submit one review per dentist.'
+      );
+    }
+
     // Create a properly formatted review object
     const createReviewDto = {
       dentist: dentistId,
-      patient: req.user.userId,
+      patient: patientId,
       rating: reviewData.rating,
       comment: reviewData.comment,
       procedure: reviewData.procedure,
@@ -86,14 +104,40 @@ export class ReviewsController {
     // Format the review to match the frontend expectations
     const user = req.user;
     return {
-      id: newReview._id,
+      id: (newReview as any)._id,
       dentistId: dentistId,
-      patientId: req.user.userId,
+      patientId: patientId,
       patientName: user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Anonymous',
       rating: newReview.rating,
       comment: newReview.comment,
       date: new Date().toISOString().split('T')[0], // Format as YYYY-MM-DD
       procedure: newReview.procedure
+    };
+  }
+
+  // Endpoint to check if a patient can review a dentist
+  @UseGuards(JwtAuthGuard)
+  @Get('dentist/:id/can-review')
+  async canReviewDentist(
+    @Param('id') dentistId: string,
+    @Request() req
+  ) {
+    const patientId = req.user.userId;
+
+    // Check if patient has appointments with this dentist
+    const canReview = await this.reviewsService.validatePatientCanReview(patientId, dentistId);
+    
+    // Check if patient has already reviewed this dentist
+    const hasExistingReview = await this.reviewsService.checkExistingReview(patientId, dentistId);
+
+    return {
+      canReview,
+      hasExistingReview,
+      message: !canReview 
+        ? 'You must have a completed appointment with this dentist to leave a review.'
+        : hasExistingReview 
+          ? 'You have already reviewed this dentist.'
+          : 'You can leave a review for this dentist.'
     };
   }
 

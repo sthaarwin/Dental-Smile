@@ -15,7 +15,7 @@ export class ChatService {
     // Check if conversation already exists
     const existingConversation = await this.conversationModel.findOne({
       participants: { $all: [patientId, dentistId] }
-    });
+    }).populate('participants', 'name email role profile_picture');
 
     if (existingConversation) {
       return existingConversation;
@@ -27,12 +27,27 @@ export class ChatService {
       lastMessageTime: new Date(),
     });
 
-    return conversation.save();
+    const savedConversation = await conversation.save();
+    
+    // Populate the participants before returning
+    const populatedConversation = await this.conversationModel
+      .findById(savedConversation._id)
+      .populate('participants', 'name email role profile_picture')
+      .exec();
+    
+    if (!populatedConversation) {
+      throw new Error('Failed to create conversation');
+    }
+    
+    return populatedConversation;
   }
 
   async getConversations(userId: string): Promise<Conversation[]> {
     return this.conversationModel
-      .find({ participants: userId })
+      .find({ 
+        participants: userId,
+        hiddenFrom: { $ne: userId } // Exclude conversations hidden by this user
+      })
       .populate('participants', 'name email role profile_picture')
       .populate('lastMessage')
       .sort({ lastMessageTime: -1 })
@@ -66,12 +81,13 @@ export class ChatService {
 
     const savedMessage = await message.save();
 
-    // Update conversation's last message
+    // Update conversation's last message and remove receiver from hiddenFrom if they had hidden it
     await this.conversationModel.findByIdAndUpdate(
       messageData.conversationId,
       {
         lastMessage: savedMessage._id,
         lastMessageTime: savedMessage.timestamp,
+        $pull: { hiddenFrom: messageData.receiverId } // Unhide conversation for receiver
       }
     );
 
@@ -97,5 +113,31 @@ export class ChatService {
       receiverId: userId,
       isRead: false,
     });
+  }
+
+  async deleteConversation(conversationId: string, userId: string): Promise<void> {
+    // Check if the conversation exists and user is a participant
+    const conversation = await this.conversationModel.findOne({
+      _id: conversationId,
+      participants: userId
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found or you are not a participant');
+    }
+
+    // Add user to hiddenFrom array instead of deleting the conversation
+    await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      { $addToSet: { hiddenFrom: userId } }
+    );
+
+    // If both participants have hidden the conversation, then actually delete it
+    const updatedConversation = await this.conversationModel.findById(conversationId);
+    if (updatedConversation && updatedConversation.hiddenFrom.length === updatedConversation.participants.length) {
+      // All participants have hidden it, safe to delete completely
+      await this.messageModel.deleteMany({ conversationId });
+      await this.conversationModel.findByIdAndDelete(conversationId);
+    }
   }
 }

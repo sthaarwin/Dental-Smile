@@ -154,6 +154,9 @@ export const reviewAPI = {
         return api.get(`/reviews/dentist/${dentistId}`);
       });
   },
+
+  canReviewDentist: (dentistId: string) => 
+    api.get(`/reviews/dentist/${dentistId}/can-review`),
     
   submitReview: (dentistId: string, reviewData: { rating: number, procedure: string, comment: string }) => {
     // Get the user's name from local storage if available
