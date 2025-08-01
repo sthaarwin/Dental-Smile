@@ -126,14 +126,15 @@ export class ReviewsService {
   }
 
   async validatePatientCanReview(patientId: string, dentistId: string): Promise<boolean> {
-    // Check if the patient has had at least one completed appointment with this dentist
-    const completedAppointments = await this.appointmentModel.find({
+    // Check if the patient has had at least one appointment with this dentist
+    // Allow reviews for both scheduled and completed appointments
+    const validAppointments = await this.appointmentModel.find({
       patient: patientId,
       dentist: dentistId,
-      status: { $in: ['completed', 'confirmed'] } // Allow reviews for completed or confirmed appointments
+      status: { $in: ['completed', 'scheduled'] } // Allow reviews for completed or scheduled appointments
     }).exec();
 
-    return completedAppointments.length > 0;
+    return validAppointments.length > 0;
   }
 
   async checkExistingReview(patientId: string, dentistId: string): Promise<boolean> {
