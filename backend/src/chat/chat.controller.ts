@@ -47,4 +47,20 @@ export class ChatController {
   ) {
     return this.chatService.deleteConversation(conversationId, user.id);
   }
+
+  @Delete('conversations/:id/permanent')
+  async permanentlyDeleteConversation(
+    @Param('id') conversationId: string,
+    @GetUser() user: any
+  ) {
+    return this.chatService.permanentlyDeleteConversation(conversationId, user.id);
+  }
+
+  @Delete('conversations/:id/messages')
+  async clearConversationMessages(
+    @Param('id') conversationId: string,
+    @GetUser() user: any
+  ) {
+    return this.chatService.clearConversationMessages(conversationId, user.id);
+  }
 }

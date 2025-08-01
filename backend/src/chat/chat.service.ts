@@ -140,4 +140,46 @@ export class ChatService {
       await this.conversationModel.findByIdAndDelete(conversationId);
     }
   }
+
+  async permanentlyDeleteConversation(conversationId: string, userId: string): Promise<void> {
+    // Check if the conversation exists and user is a participant
+    const conversation = await this.conversationModel.findOne({
+      _id: conversationId,
+      participants: userId
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found or you are not a participant');
+    }
+
+    // Permanently delete all messages in this conversation
+    await this.messageModel.deleteMany({ conversationId });
+
+    // Permanently delete the conversation
+    await this.conversationModel.findByIdAndDelete(conversationId);
+  }
+
+  async clearConversationMessages(conversationId: string, userId: string): Promise<void> {
+    // Check if the conversation exists and user is a participant
+    const conversation = await this.conversationModel.findOne({
+      _id: conversationId,
+      participants: userId
+    });
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found or you are not a participant');
+    }
+
+    // Delete all messages in this conversation
+    await this.messageModel.deleteMany({ conversationId });
+
+    // Update conversation to remove last message reference
+    await this.conversationModel.findByIdAndUpdate(
+      conversationId,
+      { 
+        lastMessage: null,
+        lastMessageTime: new Date()
+      }
+    );
+  }
 }

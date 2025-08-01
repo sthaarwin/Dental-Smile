@@ -12,6 +12,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { 
   MessageCircle, 
   Send, 
@@ -23,7 +33,8 @@ import {
   Trash2,
   Archive,
   UserX,
-  Flag
+  Flag,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -46,11 +57,15 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
     fetchConversations,
     fetchMessages,
     deleteConversation,
+    permanentlyDeleteConversation,
+    clearConversationMessages,
   } = useChat();
 
   const [currentConversation, setCurrentConversation] = useState<string | null>(selectedConversation || null);
   const [messageText, setMessageText] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isClearMessagesDialogOpen, setIsClearMessagesDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,7 +73,8 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       fetchConversations();
       const userData = localStorage.getItem('user');
       if (userData) {
-        setCurrentUser(JSON.parse(userData));
+        const user = JSON.parse(userData);
+        setCurrentUser(user);
       }
     }
   }, [isOpen, fetchConversations]);
@@ -118,26 +134,16 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
 
   const handleSendMessage = () => {
     if (!messageText.trim() || !currentConversation) {
-      console.log('Cannot send message: missing text or conversation');
       return;
     }
-
-    console.log('Current conversation ID:', currentConversation);
-    console.log('Available conversations:', conversations);
-    console.log('Looking for conversation with ID:', currentConversation);
 
     const conversation = conversations.find(c => c._id === currentConversation);
     if (!conversation) {
-      console.log('Cannot send message: conversation not found');
-      console.log('Available conversation IDs:', conversations.map(c => c._id));
       return;
     }
 
-    const otherParticipant = conversation.participants.find(p => p._id !== currentUser?.id);
+    const otherParticipant = conversation.participants.find(p => p._id !== currentUser?._id);
     if (!otherParticipant) {
-      console.log('Cannot send message: other participant not found');
-      console.log('Current user ID:', currentUser?.id);
-      console.log('Participants:', conversation.participants);
       return;
     }
 
@@ -145,12 +151,6 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       toast.error('Not connected to chat server');
       return;
     }
-
-    console.log('Sending message:', {
-      conversationId: currentConversation,
-      receiverId: otherParticipant._id,
-      message: messageText
-    });
 
     sendMessage(currentConversation, otherParticipant._id, messageText);
     setMessageText('');
@@ -172,7 +172,22 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       setCurrentConversation(null);
       fetchConversations();
     } catch (error) {
+      console.error('Failed to hide conversation:', error);
       toast.error('Failed to hide conversation');
+    }
+  };
+
+  const handlePermanentDelete = async () => {
+    if (!currentConversation) return;
+    
+    try {
+      await permanentlyDeleteConversation(currentConversation);
+      toast.success('Conversation deleted permanently');
+      setCurrentConversation(null);
+      fetchConversations();
+    } catch (error) {
+      console.error('Failed to delete conversation permanently:', error);
+      toast.error('Failed to delete conversation permanently');
     }
   };
 
@@ -185,6 +200,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       setCurrentConversation(null);
       fetchConversations();
     } catch (error) {
+      console.error('Failed to archive conversation:', error);
       toast.error('Failed to archive conversation');
     }
   };
@@ -198,6 +214,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       setCurrentConversation(null);
       fetchConversations();
     } catch (error) {
+      console.error('Failed to block user:', error);
       toast.error('Failed to block user');
     }
   };
@@ -209,7 +226,22 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       // TODO: Implement report user API call
       toast.success('User reported successfully');
     } catch (error) {
+      console.error('Failed to report user:', error);
       toast.error('Failed to report user');
+    }
+  };
+
+  const handleClearMessages = async () => {
+    if (!currentConversation) return;
+    
+    try {
+      await clearConversationMessages(currentConversation);
+      toast.success('All messages cleared from conversation');
+      setIsClearMessagesDialogOpen(false);
+      fetchMessages(currentConversation); // Refresh the messages
+    } catch (error) {
+      console.error('Failed to clear messages:', error);
+      toast.error('Failed to clear messages');
     }
   };
 
@@ -227,7 +259,8 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       if (!p || !p._id) {
         return false;
       }
-      return p._id !== currentUser?.id;
+      // Use _id instead of id to match localStorage structure
+      return p._id !== currentUser?._id;
     });
   };
 
@@ -292,13 +325,15 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                   return (
                     <div
                       key={conversation._id}
-                      onClick={() => setCurrentConversation(conversation._id)}
                       className={cn(
-                        "p-4 border-b cursor-pointer hover:bg-gray-100 transition-colors",
+                        "group relative border-b hover:bg-gray-100 transition-colors",
                         currentConversation === conversation._id && "bg-dentist-50"
                       )}
                     >
-                      <div className="flex items-center space-x-3">
+                      <div
+                        onClick={() => setCurrentConversation(conversation._id)}
+                        className="p-4 cursor-pointer flex items-center space-x-3"
+                      >
                         <Avatar className="h-10 w-10">
                           <AvatarImage src={otherParticipant?.profile_picture} />
                           <AvatarFallback>
@@ -321,6 +356,20 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                           </p>
                         </div>
                       </div>
+                      
+                      {/* Delete button - shows on hover */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCurrentConversation(conversation._id);
+                          setIsDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   );
                 })
@@ -376,10 +425,25 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
-                          <DropdownMenuItem onClick={handleDeleteConversation}>
+                          <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)}>
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Hide Conversation
+                            Hide Chat
                           </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => setIsClearMessagesDialogOpen(true)}
+                            className="text-orange-600 hover:text-orange-700"
+                          >
+                            <X className="mr-2 h-4 w-4" />
+                            Clear Messages
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={handlePermanentDelete}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Permanently
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={handleArchiveConversation}>
                             <Archive className="mr-2 h-4 w-4" />
                             Archive Conversation
@@ -403,8 +467,43 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                 <ScrollArea className="flex-1 p-4 bg-gray-50">
                   <div className="space-y-3">
                     {(messages[currentConversation] || []).map((message, index) => {
-                      const isCurrentUser = message.senderId === currentUser?.id;
-                      const otherParticipant = getOtherParticipant(getCurrentConversation());
+                      const conversation = getCurrentConversation();
+                      
+                      // Improved sender identification logic - use _id consistently
+                      const isCurrentUser = message.senderId === currentUser?._id || 
+                                          String(message.senderId) === String(currentUser?._id);
+                      
+                      // Get sender information with better fallback logic
+                      let sender = null;
+                      let senderName = 'Unknown';
+                      
+                      if (conversation?.participants) {
+                        // Try to find sender by ID (both string and object comparison)
+                        sender = conversation.participants.find(p => 
+                          p._id === message.senderId || 
+                          String(p._id) === String(message.senderId)
+                        );
+                        
+                        if (sender) {
+                          senderName = sender.name;
+                        } else if (isCurrentUser) {
+                          // If it's current user but not found in participants, use current user data
+                          senderName = currentUser?.name || 'You';
+                          sender = {
+                            _id: currentUser?._id,
+                            name: currentUser?.name,
+                            profile_picture: currentUser?.profile_picture,
+                            role: currentUser?.role
+                          };
+                        } else {
+                          // If not current user and not found, use other participant as fallback
+                          const otherParticipant = getOtherParticipant(conversation);
+                          if (otherParticipant) {
+                            sender = otherParticipant;
+                            senderName = otherParticipant.name;
+                          }
+                        }
+                      }
                       
                       return (
                         <div
@@ -417,9 +516,9 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                           {/* Avatar for other participant (left side only) */}
                           {!isCurrentUser && (
                             <Avatar className="h-8 w-8 mb-1">
-                              <AvatarImage src={otherParticipant?.profile_picture} />
+                              <AvatarImage src={sender?.profile_picture} />
                               <AvatarFallback className="text-xs">
-                                {otherParticipant?.name?.charAt(0) || 'U'}
+                                {senderName?.charAt(0) || 'U'}
                               </AvatarFallback>
                             </Avatar>
                           )}
@@ -492,6 +591,72 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-semibold">
+              <Trash2 className="inline-block mr-2" />
+              Delete Conversation
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this conversation? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="outline" size="sm">
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDeleteConversation}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear Messages Confirmation Dialog */}
+      <AlertDialog open={isClearMessagesDialogOpen} onOpenChange={setIsClearMessagesDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-semibold">
+              <Trash2 className="inline-block mr-2" />
+              Clear Messages
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to clear all messages in this conversation? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="outline" size="sm">
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleClearMessages}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Clear Messages
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

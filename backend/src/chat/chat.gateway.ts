@@ -36,8 +36,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const token = client.handshake.auth.token || client.handshake.headers.authorization?.replace('Bearer ', '');
       
+      this.logger.log(`Connection attempt from client ${client.id}`);
+      this.logger.log(`Token provided: ${!!token}`);
+      
       if (!token) {
         this.logger.warn('Client connection rejected: No token provided');
+        client.emit('connect_error', { message: 'No authentication token provided' });
         client.disconnect();
         return;
       }
@@ -49,6 +53,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const userId = payload.sub;
       const userRole = payload.role;
 
+      this.logger.log(`Token verified successfully for user ${userId} (${userRole})`);
+
       this.connectedUsers.set(client.id, { socketId: client.id, userId, role: userRole });
       
       // Join user to their own room
@@ -59,8 +65,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       // Notify user is online
       this.server.emit('userOnline', { userId, role: userRole });
       
+      // Send connection success to client
+      client.emit('connection_success', { userId, role: userRole });
+      
     } catch (error) {
-      this.logger.error('Authentication failed:', error.message);
+      this.logger.error(`Authentication failed for client ${client.id}:`, error.message);
+      client.emit('connect_error', { message: 'Authentication failed: ' + error.message });
       client.disconnect();
     }
   }
