@@ -6,6 +6,7 @@ import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { Message, MessageSchema } from './schemas/message.schema';
 import { Conversation, ConversationSchema } from './schemas/conversation.schema';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { Conversation, ConversationSchema } from './schemas/conversation.schema'
       { name: Conversation.name, schema: ConversationSchema },
     ]),
     JwtModule,
+    UsersModule,
   ],
   providers: [ChatGateway, ChatService],
   controllers: [ChatController],

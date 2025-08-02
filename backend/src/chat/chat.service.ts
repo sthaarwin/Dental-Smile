@@ -57,13 +57,39 @@ export class ChatService {
   async getConversationMessages(conversationId: string, page: number = 1, limit: number = 50): Promise<Message[]> {
     const skip = (page - 1) * limit;
     
-    return this.messageModel
+    // Get the conversation to access participants
+    const conversation = await this.conversationModel
+      .findById(conversationId)
+      .populate('participants', 'name email role profile_picture')
+      .exec();
+
+    if (!conversation) {
+      throw new NotFoundException('Conversation not found');
+    }
+
+    // Fetch messages with proper population
+    const messages = await this.messageModel
       .find({ conversationId })
       .populate('senderId', 'name email role profile_picture')
       .sort({ timestamp: -1 })
       .skip(skip)
       .limit(limit)
       .exec();
+
+    // Enhance messages with sender information
+    const enhancedMessages = messages.map(message => {
+      const messageObj = message.toObject();
+      // Type assertion for populated senderId
+      const sender = messageObj.senderId as any;
+
+      return {
+        ...messageObj,
+        senderName: sender?.name || 'Unknown User',
+        senderRole: sender?.role || 'user'
+      };
+    });
+
+    return enhancedMessages;
   }
 
   async saveMessage(messageData: {

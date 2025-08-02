@@ -10,6 +10,7 @@ interface Message {
   messageType: 'text' | 'image' | 'file';
   timestamp: string;
   senderRole: string;
+  senderName?: string; // Add senderName field
   isRead: boolean;
 }
 
@@ -95,6 +96,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     newSocket.on('connect_error', (error) => {
       setIsConnected(false);
+      console.error('Socket connection error:', error);
+    });
+
+    newSocket.on('auth_error', (error) => {
+      setIsConnected(false);
+      console.error('Socket authentication error:', error);
+      
+      // If token is expired, try to refresh or redirect to login
+      if (error.message && error.message.includes('jwt expired')) {
+        // Clear expired token and redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     });
 
     newSocket.on('reconnect', () => {
@@ -106,6 +121,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     newSocket.on('reconnect_error', (error) => {
       // Reconnection error
+      console.error('Socket reconnection error:', error);
     });
 
     newSocket.on('reconnect_failed', () => {
@@ -135,8 +151,9 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
         )
       );
       
-      // Update unread count if message is not from current user
-      if (message.senderId !== userData.id) {
+      // Update unread count if message is not from current user - use _id consistently
+      const currentUserId = userData._id || userData.id;
+      if (message.senderId !== currentUserId) {
         setUnreadCount(prev => prev + 1);
       }
     });
@@ -155,6 +172,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     newSocket.on('messageError', (error) => {
       // Handle message error
+      console.error('Message error:', error);
     });
 
     setSocket(newSocket);
@@ -182,16 +200,17 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     socket.emit('sendMessage', messageData);
 
-    // Add the message optimistically to the UI
+    // Add the message optimistically to the UI - use consistent ID format
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
     const tempMessage = {
       id: `temp-${Date.now()}`,
       conversationId,
-      senderId: JSON.parse(localStorage.getItem('user') || '{}')._id, // Use _id instead of id
+      senderId: userData._id || userData.id, // Try both formats
       receiverId,
       message,
       messageType: 'text' as const,
       timestamp: new Date().toISOString(),
-      senderRole: JSON.parse(localStorage.getItem('user') || '{}').role,
+      senderRole: userData.role,
       isRead: false,
     };
 

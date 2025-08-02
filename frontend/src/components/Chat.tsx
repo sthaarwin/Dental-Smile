@@ -406,8 +406,10 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                         <p className="font-medium">
                           {getOtherParticipant(getCurrentConversation())?.name}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 capitalize">
                           {getOtherParticipant(getCurrentConversation())?.role}
+                          {currentUser?.role === 'patient' && getOtherParticipant(getCurrentConversation())?.role === 'dentist' ? ' (Doctor)' : ''}
+                          {currentUser?.role === 'dentist' && getOtherParticipant(getCurrentConversation())?.role === 'patient' ? ' (Patient)' : ''}
                         </p>
                       </div>
                     </div>
@@ -465,90 +467,128 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
 
                 {/* Messages */}
                 <ScrollArea className="flex-1 p-4 bg-gray-50">
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {(messages[currentConversation] || []).map((message, index) => {
                       const conversation = getCurrentConversation();
                       
-                      // Improved sender identification logic - use _id consistently
-                      const isCurrentUser = message.senderId === currentUser?._id || 
-                                          String(message.senderId) === String(currentUser?._id);
+                      // Extract sender ID properly - handle both string and object cases
+                      let messageSenderId = message.senderId;
+                      if (typeof messageSenderId === 'object' && messageSenderId !== null) {
+                        // If senderId is an object, try to extract the actual ID
+                        messageSenderId = messageSenderId._id || messageSenderId.id || String(messageSenderId);
+                      }
+                      messageSenderId = String(messageSenderId || '');
                       
-                      // Get sender information with better fallback logic
+                      // Get current user ID consistently
+                      const currentUserId = String(currentUser?._id || currentUser?.id || '');
+                      const isCurrentUser = currentUserId === messageSenderId;
+                      
+                      // Get sender information with improved logic
                       let sender = null;
                       let senderName = 'Unknown';
                       
-                      if (conversation?.participants) {
-                        // Try to find sender by ID (both string and object comparison)
+                      // First check if message has senderName from the backend
+                      if (message.senderName) {
+                        senderName = message.senderName;
+                        sender = {
+                          _id: messageSenderId,
+                          name: message.senderName,
+                          role: message.senderRole,
+                          profile_picture: null // Will be populated from participants if available
+                        };
+                      } else if (isCurrentUser) {
+                        // If it's current user, use current user data
+                        senderName = currentUser?.name || 'You';
+                        sender = {
+                          _id: currentUser?._id || currentUser?.id,
+                          name: currentUser?.name,
+                          profile_picture: currentUser?.profile_picture,
+                          role: currentUser?.role
+                        };
+                      } else if (conversation?.participants) {
+                        // Find sender in participants
                         sender = conversation.participants.find(p => 
-                          p._id === message.senderId || 
-                          String(p._id) === String(message.senderId)
+                          String(p._id) === messageSenderId
                         );
                         
                         if (sender) {
-                          senderName = sender.name;
-                        } else if (isCurrentUser) {
-                          // If it's current user but not found in participants, use current user data
-                          senderName = currentUser?.name || 'You';
-                          sender = {
-                            _id: currentUser?._id,
-                            name: currentUser?.name,
-                            profile_picture: currentUser?.profile_picture,
-                            role: currentUser?.role
-                          };
+                          senderName = sender.name || 'User';
                         } else {
-                          // If not current user and not found, use other participant as fallback
+                          // If not found, use the other participant as fallback
                           const otherParticipant = getOtherParticipant(conversation);
                           if (otherParticipant) {
                             sender = otherParticipant;
-                            senderName = otherParticipant.name;
+                            senderName = otherParticipant.name || 'User';
                           }
+                        }
+                      }
+
+                      // If we found sender in participants and have senderName from message, update profile picture
+                      if (message.senderName && conversation?.participants) {
+                        const participantSender = conversation.participants.find(p => 
+                          String(p._id) === messageSenderId
+                        );
+                        if (participantSender && sender) {
+                          sender.profile_picture = participantSender.profile_picture;
                         }
                       }
                       
                       return (
                         <div
-                          key={message.id || `message-${index}`}
+                          key={message.id || message._id || `message-${index}`}
                           className={cn(
-                            "flex items-end gap-2",
+                            "flex items-end gap-3 max-w-full",
                             isCurrentUser ? "justify-end" : "justify-start"
                           )}
                         >
-                          {/* Avatar for other participant (left side only) */}
+                          {/* Avatar for other user (left side) */}
                           {!isCurrentUser && (
-                            <Avatar className="h-8 w-8 mb-1">
+                            <Avatar className="h-8 w-8 mb-1 flex-shrink-0">
                               <AvatarImage src={sender?.profile_picture} />
-                              <AvatarFallback className="text-xs">
-                                {senderName?.charAt(0) || 'U'}
+                              <AvatarFallback className="text-xs bg-gray-200 text-gray-700">
+                                {senderName?.charAt(0)?.toUpperCase() || 'U'}
                               </AvatarFallback>
                             </Avatar>
                           )}
                           
                           {/* Message bubble */}
-                          <div
-                            className={cn(
-                              "max-w-[70%] px-4 py-2 rounded-2xl shadow-sm",
-                              isCurrentUser
-                                ? "bg-dentist-600 text-white rounded-br-md"
-                                : "bg-white text-gray-900 rounded-bl-md border"
+                          <div className={cn(
+                            "flex flex-col",
+                            isCurrentUser ? "items-end" : "items-start"
+                          )}>
+                            {/* Sender name (only show for other users) */}
+                            {!isCurrentUser && (
+                              <span className="text-xs text-gray-500 mb-1 px-1">
+                                {senderName}
+                              </span>
                             )}
-                          >
-                            <p className="text-sm leading-relaxed">{message.message}</p>
-                            <p className={cn(
-                              "text-xs mt-1",
-                              isCurrentUser
-                                ? "text-dentist-100"
-                                : "text-gray-500"
-                            )}>
-                              {formatMessageTime(message.timestamp)}
-                            </p>
+                            
+                            <div
+                              className={cn(
+                                "max-w-[280px] px-4 py-3 rounded-lg shadow-sm break-words",
+                                isCurrentUser
+                                  ? "bg-blue-600 text-white rounded-br-none"
+                                  : "bg-white text-gray-900 border border-gray-200 rounded-bl-none"
+                              )}
+                            >
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.message}</p>
+                              <p className={cn(
+                                "text-xs mt-2",
+                                isCurrentUser
+                                  ? "text-blue-100"
+                                  : "text-gray-500"
+                              )}>
+                                {formatMessageTime(message.timestamp)}
+                              </p>
+                            </div>
                           </div>
                           
-                          {/* Avatar for current user (right side only) */}
+                          {/* Avatar for current user (right side) */}
                           {isCurrentUser && (
-                            <Avatar className="h-8 w-8 mb-1">
+                            <Avatar className="h-8 w-8 mb-1 flex-shrink-0">
                               <AvatarImage src={currentUser?.profile_picture} />
-                              <AvatarFallback className="text-xs bg-dentist-600 text-white">
-                                {currentUser?.name?.charAt(0) || 'Y'}
+                              <AvatarFallback className="text-xs bg-blue-600 text-white">
+                                {currentUser?.name?.charAt(0)?.toUpperCase() || 'Y'}
                               </AvatarFallback>
                             </Avatar>
                           )}
