@@ -77,7 +77,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
         setCurrentUser(user);
       }
     }
-  }, [isOpen, fetchConversations]);
+  }, [isOpen]); // Keep this dependency array simple
 
   // Add effect to refresh conversations when a new selectedConversation is provided
   useEffect(() => {
@@ -86,7 +86,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       // This ensures we have the latest conversation list
       fetchConversations();
     }
-  }, [selectedConversation, isOpen, fetchConversations]);
+  }, [selectedConversation, isOpen]); // Keep this dependency array simple
 
   useEffect(() => {
     if (selectedConversation) {
@@ -104,7 +104,15 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
             setCurrentConversation(selectedConversation);
           } else {
             console.warn(`Selected conversation ${selectedConversation} still not found after retry`);
-            setCurrentConversation(null);
+            // Instead of setting to null, try to use the first available conversation
+            // that involves the current user
+            const firstConversation = conversations[0];
+            if (firstConversation) {
+              console.log(`Using first available conversation: ${firstConversation._id}`);
+              setCurrentConversation(firstConversation._id);
+            } else {
+              setCurrentConversation(null);
+            }
           }
         }, 500);
       } else {
@@ -115,17 +123,22 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
 
   useEffect(() => {
     if (currentConversation) {
+      console.log(`Joining conversation: ${currentConversation}`);
       joinConversation(currentConversation);
       fetchMessages(currentConversation);
       
       return () => {
+        console.log(`Leaving conversation: ${currentConversation}`);
         leaveConversation(currentConversation);
       };
     }
-  }, [currentConversation, joinConversation, leaveConversation, fetchMessages]);
+  }, [currentConversation]);
 
+  // Only scroll to bottom when messages change for the current conversation
   useEffect(() => {
-    scrollToBottom();
+    if (currentConversation && messages[currentConversation]) {
+      scrollToBottom();
+    }
   }, [messages, currentConversation]);
 
   const scrollToBottom = () => {
@@ -133,17 +146,29 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
   };
 
   const handleSendMessage = () => {
+    console.log('handleSendMessage - messageText:', messageText);
+    console.log('handleSendMessage - currentConversation:', currentConversation);
+    console.log('handleSendMessage - conversations:', conversations);
+    
     if (!messageText.trim() || !currentConversation) {
+      console.log('handleSendMessage - missing message or conversation');
       return;
     }
 
     const conversation = conversations.find(c => c._id === currentConversation);
+    console.log('handleSendMessage - found conversation:', conversation);
+    
     if (!conversation) {
+      console.log('handleSendMessage - conversation not found in conversations list');
       return;
     }
 
-    const otherParticipant = conversation.participants.find(p => p._id !== currentUser?._id);
+    const otherParticipant = getOtherParticipant(conversation);
     if (!otherParticipant) {
+      console.error('Could not find other participant in conversation');
+      console.log('handleSendMessage - conversation participants:', conversation.participants);
+      console.log('handleSendMessage - current user:', currentUser);
+      toast.error('Unable to send message - recipient not found');
       return;
     }
 
@@ -152,6 +177,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       return;
     }
 
+    console.log('Sending message to:', otherParticipant.name, 'ID:', otherParticipant._id);
     sendMessage(currentConversation, otherParticipant._id, messageText);
     setMessageText('');
   };
@@ -250,18 +276,96 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
   };
 
   const getOtherParticipant = (conversation: any) => {
+    console.log('getOtherParticipant - conversation:', conversation);
+    console.log('getOtherParticipant - currentUser:', currentUser);
+    
     if (!conversation || !conversation.participants || !Array.isArray(conversation.participants) || !currentUser) {
+      console.log('getOtherParticipant - missing data');
       return null;
     }
     
-    return conversation.participants.find((p: any) => {
+    const currentUserId = String(currentUser._id || currentUser.id || '');
+    console.log('getOtherParticipant - currentUserId:', currentUserId);
+    console.log('getOtherParticipant - participants array length:', conversation.participants.length);
+    
+    // Log each participant in detail
+    conversation.participants.forEach((p: any, index: number) => {
+      console.log(`getOtherParticipant - participant ${index}:`, p);
+      console.log(`getOtherParticipant - participant ${index} _id:`, p?._id);
+      console.log(`getOtherParticipant - participant ${index} id:`, p?.id);
+    });
+    
+    // TEMPORARY FIX: If conversation only has 1 participant, we need to find the other user
+    // This happens when the conversation data is corrupted or not properly populated
+    if (conversation.participants.length === 1) {
+      const singleParticipant = conversation.participants[0];
+      const singleParticipantId = String(singleParticipant._id || singleParticipant.id || '');
+      
+      console.log('getOtherParticipant - ISSUE: Only 1 participant found');
+      console.log('getOtherParticipant - Single participant ID:', singleParticipantId);
+      console.log('getOtherParticipant - Current user ID:', currentUserId);
+      
+      // If the single participant is the current user, we need to find the other user
+      if (singleParticipantId === currentUserId) {
+        console.log('getOtherParticipant - Single participant is current user, need to find other user');
+        
+        // Try to get the other user from message history
+        const conversationMessages = messages[conversation._id] || [];
+        console.log('getOtherParticipant - Checking messages for other participant:', conversationMessages);
+        
+        for (const message of conversationMessages) {
+          const messageSenderId = String(message.senderId || '');
+          const messageReceiverId = String(message.receiverId || '');
+          
+          // Find a user ID that's not the current user
+          if (messageSenderId !== currentUserId && messageSenderId) {
+            console.log('getOtherParticipant - Found other user from message sender:', messageSenderId);
+            // Create a basic participant object from message data
+            return {
+              _id: messageSenderId,
+              name: message.senderName || 'Unknown User',
+              role: message.senderRole || 'user',
+              profile_picture: null
+            };
+          }
+          
+          if (messageReceiverId !== currentUserId && messageReceiverId) {
+            console.log('getOtherParticipant - Found other user from message receiver:', messageReceiverId);
+            // We don't have receiver details in messages, so return basic info
+            return {
+              _id: messageReceiverId,
+              name: 'Chat Partner',
+              role: 'user',
+              profile_picture: null
+            };
+          }
+        }
+        
+        console.log('getOtherParticipant - Could not find other user in messages');
+        return null;
+      } else {
+        // The single participant is not the current user, so return them
+        console.log('getOtherParticipant - Single participant is the other user');
+        return singleParticipant;
+      }
+    }
+    
+    const otherParticipant = conversation.participants.find((p: any) => {
       // Add null check for participant
       if (!p || !p._id) {
+        console.log('getOtherParticipant - invalid participant:', p);
         return false;
       }
-      // Use _id instead of id to match localStorage structure
-      return p._id !== currentUser?._id;
+      
+      const participantId = String(p._id || p.id || '');
+      console.log('getOtherParticipant - comparing:', participantId, 'vs', currentUserId);
+      const isOther = participantId !== currentUserId;
+      console.log('getOtherParticipant - isOther:', isOther);
+      return isOther;
     });
+    
+    console.log('getOtherParticipant - found other participant:', otherParticipant);
+    return otherParticipant;
   };
 
   const formatMessageTime = (timestamp: string) => {
@@ -406,8 +510,10 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                         <p className="font-medium">
                           {getOtherParticipant(getCurrentConversation())?.name}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 capitalize">
                           {getOtherParticipant(getCurrentConversation())?.role}
+                          {currentUser?.role === 'patient' && getOtherParticipant(getCurrentConversation())?.role === 'dentist' ? ' (Doctor)' : ''}
+                          {currentUser?.role === 'dentist' && getOtherParticipant(getCurrentConversation())?.role === 'patient' ? ' (Patient)' : ''}
                         </p>
                       </div>
                     </div>
@@ -465,90 +571,132 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
 
                 {/* Messages */}
                 <ScrollArea className="flex-1 p-4 bg-gray-50">
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {(messages[currentConversation] || []).map((message, index) => {
                       const conversation = getCurrentConversation();
                       
-                      // Improved sender identification logic - use _id consistently
-                      const isCurrentUser = message.senderId === currentUser?._id || 
-                                          String(message.senderId) === String(currentUser?._id);
+                      // Extract sender ID properly - handle both string and object cases
+                      let messageSenderId: string = '';
+                      if (typeof message.senderId === 'object' && message.senderId !== null) {
+                        // If senderId is an object, try to extract the actual ID
+                        messageSenderId = (message.senderId as any)._id || (message.senderId as any).id || String(message.senderId);
+                      } else {
+                        messageSenderId = String(message.senderId || '');
+                      }
                       
-                      // Get sender information with better fallback logic
+                      // Get current user ID consistently - handle both _id and id fields
+                      const currentUserId = String(currentUser?._id || currentUser?.id || '');
+                      const isCurrentUser = currentUserId === messageSenderId;
+                      
+                      // Create a unique key for each message - ensure we always have an ID
+                      const messageKey = message.id || `message-${index}-${message.timestamp || Date.now()}-${messageSenderId}`;
+                      
+                      // Get sender information with improved logic
                       let sender = null;
                       let senderName = 'Unknown';
                       
-                      if (conversation?.participants) {
-                        // Try to find sender by ID (both string and object comparison)
+                      // First check if message has senderName from the backend
+                      if (message.senderName) {
+                        senderName = message.senderName;
+                        sender = {
+                          _id: messageSenderId,
+                          name: message.senderName,
+                          role: message.senderRole,
+                          profile_picture: null // Will be populated from participants if available
+                        };
+                      } else if (isCurrentUser) {
+                        // If it's current user, use current user data
+                        senderName = currentUser?.name || 'You';
+                        sender = {
+                          _id: currentUser?._id || currentUser?.id,
+                          name: currentUser?.name,
+                          profile_picture: currentUser?.profile_picture,
+                          role: currentUser?.role
+                        };
+                      } else if (conversation?.participants) {
+                        // Find sender in participants
                         sender = conversation.participants.find(p => 
-                          p._id === message.senderId || 
-                          String(p._id) === String(message.senderId)
+                          String(p._id) === messageSenderId
                         );
                         
                         if (sender) {
-                          senderName = sender.name;
-                        } else if (isCurrentUser) {
-                          // If it's current user but not found in participants, use current user data
-                          senderName = currentUser?.name || 'You';
-                          sender = {
-                            _id: currentUser?._id,
-                            name: currentUser?.name,
-                            profile_picture: currentUser?.profile_picture,
-                            role: currentUser?.role
-                          };
+                          senderName = sender.name || 'User';
                         } else {
-                          // If not current user and not found, use other participant as fallback
+                          // If not found, use the other participant as fallback
                           const otherParticipant = getOtherParticipant(conversation);
                           if (otherParticipant) {
                             sender = otherParticipant;
-                            senderName = otherParticipant.name;
+                            senderName = otherParticipant.name || 'User';
                           }
+                        }
+                      }
+
+                      // If we found sender in participants and have senderName from message, update profile picture
+                      if (message.senderName && conversation?.participants) {
+                        const participantSender = conversation.participants.find(p => 
+                          String(p._id) === messageSenderId
+                        );
+                        if (participantSender && sender) {
+                          sender.profile_picture = participantSender.profile_picture;
                         }
                       }
                       
                       return (
                         <div
-                          key={message.id || `message-${index}`}
+                          key={messageKey}
                           className={cn(
-                            "flex items-end gap-2",
+                            "flex items-end gap-3 max-w-full",
                             isCurrentUser ? "justify-end" : "justify-start"
                           )}
                         >
-                          {/* Avatar for other participant (left side only) */}
+                          {/* Avatar for other user (left side) */}
                           {!isCurrentUser && (
-                            <Avatar className="h-8 w-8 mb-1">
+                            <Avatar className="h-8 w-8 mb-1 flex-shrink-0">
                               <AvatarImage src={sender?.profile_picture} />
-                              <AvatarFallback className="text-xs">
-                                {senderName?.charAt(0) || 'U'}
+                              <AvatarFallback className="text-xs bg-gray-200 text-gray-700">
+                                {senderName?.charAt(0)?.toUpperCase() || 'U'}
                               </AvatarFallback>
                             </Avatar>
                           )}
                           
                           {/* Message bubble */}
-                          <div
-                            className={cn(
-                              "max-w-[70%] px-4 py-2 rounded-2xl shadow-sm",
-                              isCurrentUser
-                                ? "bg-dentist-600 text-white rounded-br-md"
-                                : "bg-white text-gray-900 rounded-bl-md border"
+                          <div className={cn(
+                            "flex flex-col",
+                            isCurrentUser ? "items-end" : "items-start"
+                          )}>
+                            {/* Sender name (only show for other users) */}
+                            {!isCurrentUser && (
+                              <span className="text-xs text-gray-500 mb-1 px-1">
+                                {senderName}
+                              </span>
                             )}
-                          >
-                            <p className="text-sm leading-relaxed">{message.message}</p>
-                            <p className={cn(
-                              "text-xs mt-1",
-                              isCurrentUser
-                                ? "text-dentist-100"
-                                : "text-gray-500"
-                            )}>
-                              {formatMessageTime(message.timestamp)}
-                            </p>
+                            
+                            <div
+                              className={cn(
+                                "max-w-[280px] px-4 py-3 rounded-lg shadow-sm break-words",
+                                isCurrentUser
+                                  ? "bg-blue-600 text-white rounded-br-none"
+                                  : "bg-white text-gray-900 border border-gray-200 rounded-bl-none"
+                              )}
+                            >
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.message}</p>
+                              <p className={cn(
+                                "text-xs mt-2",
+                                isCurrentUser
+                                  ? "text-blue-100"
+                                  : "text-gray-500"
+                              )}>
+                                {formatMessageTime(message.timestamp)}
+                              </p>
+                            </div>
                           </div>
                           
-                          {/* Avatar for current user (right side only) */}
+                          {/* Avatar for current user (right side) */}
                           {isCurrentUser && (
-                            <Avatar className="h-8 w-8 mb-1">
+                            <Avatar className="h-8 w-8 mb-1 flex-shrink-0">
                               <AvatarImage src={currentUser?.profile_picture} />
-                              <AvatarFallback className="text-xs bg-dentist-600 text-white">
-                                {currentUser?.name?.charAt(0) || 'Y'}
+                              <AvatarFallback className="text-xs bg-blue-600 text-white">
+                                {currentUser?.name?.charAt(0)?.toUpperCase() || 'Y'}
                               </AvatarFallback>
                             </Avatar>
                           )}

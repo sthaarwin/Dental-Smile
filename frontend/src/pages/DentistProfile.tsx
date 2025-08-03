@@ -253,6 +253,14 @@ const DentistProfile = () => {
       return;
     }
 
+    // Check if we're using mock data (numeric IDs) vs real data (ObjectId strings)
+    const isMockData = /^\d+$/.test(String(dentist.id));
+    
+    if (isMockData) {
+      toast.error('Chat is only available for verified dentists. This appears to be demo data.');
+      return;
+    }
+
     try {
       const conversation = await createConversation(dentist.id);
       setSelectedConversation(conversation._id);
@@ -260,7 +268,15 @@ const DentistProfile = () => {
       toast.success(`Started conversation with Dr. ${dentist.lastName}`);
     } catch (error) {
       console.error('Error starting conversation:', error);
-      toast.error('Failed to start conversation. Please try again.');
+      
+      // Handle specific error cases
+      if (error.message?.includes('ObjectId')) {
+        toast.error('Chat is only available for verified dentists from our database.');
+      } else if (error.response?.status === 400) {
+        toast.error('Unable to start conversation. Please ensure you are logged in.');
+      } else {
+        toast.error('Failed to start conversation. Please try again.');
+      }
     }
   };
 

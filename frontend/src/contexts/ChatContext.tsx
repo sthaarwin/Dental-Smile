@@ -10,6 +10,7 @@ interface Message {
   messageType: 'text' | 'image' | 'file';
   timestamp: string;
   senderRole: string;
+  senderName?: string; // Add senderName field
   isRead: boolean;
 }
 
@@ -95,6 +96,20 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     newSocket.on('connect_error', (error) => {
       setIsConnected(false);
+      console.error('Socket connection error:', error);
+    });
+
+    newSocket.on('auth_error', (error) => {
+      setIsConnected(false);
+      console.error('Socket authentication error:', error);
+      
+      // If token is expired, try to refresh or redirect to login
+      if (error.message && error.message.includes('jwt expired')) {
+        // Clear expired token and redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
     });
 
     newSocket.on('reconnect', () => {
@@ -106,6 +121,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     newSocket.on('reconnect_error', (error) => {
       // Reconnection error
+      console.error('Socket reconnection error:', error);
     });
 
     newSocket.on('reconnect_failed', () => {
@@ -113,30 +129,89 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
     });
 
     newSocket.on('newMessage', (message: Message) => {
-      // Remove any temporary message with the same content
+      console.log('Received new message from:', message.senderName, 'Role:', message.senderRole);
+      console.log('Full message details:', message);
+      
+      // Ensure message has a valid ID
+      if (!message.id) {
+        console.warn('Received message without ID, generating one:', message);
+        message.id = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      }
+      
       setMessages(prev => {
         const conversationMessages = prev[message.conversationId] || [];
-        const filteredMessages = conversationMessages.filter(m => 
-          !(m && m.id && m.id.startsWith('temp-') && m.message === message.message && m.senderId === message.senderId)
+        
+        // Check if this exact message already exists (by ID)
+        const messageExists = conversationMessages.some(m => 
+          m.id === message.id
         );
+        
+        if (messageExists) {
+          console.log('Message already exists, skipping duplicate:', message.id);
+          return prev; // Don't add duplicate
+        }
+        
+        // Remove any temporary messages that match this message content
+        const filteredMessages = conversationMessages.filter(m => {
+          if (!m.id || !m.id.startsWith('temp-')) {
+            return true; // Keep all non-temporary messages
+          }
+          
+          // Remove temp messages that match exactly
+          const isSameSender = String(m.senderId) === String(message.senderId);
+          const isSameMessage = m.message === message.message;
+          const isRecent = Math.abs(new Date(m.timestamp).getTime() - new Date(message.timestamp).getTime()) < 30000; // 30 seconds
+          
+          if (isSameSender && isSameMessage && isRecent) {
+            console.log('Removing temporary message that matches server message:', m.id);
+            return false;
+          }
+          return true;
+        });
+        
+        // Always add the new message from the server
+        const updatedMessages = [...filteredMessages, message];
+        
+        console.log('Updated messages for conversation:', message.conversationId, updatedMessages.length);
         
         return {
           ...prev,
-          [message.conversationId]: [...filteredMessages, message]
+          [message.conversationId]: updatedMessages
         };
       });
       
-      // Update conversation's last message
-      setConversations(prev => 
-        prev.map(conv => 
-          conv._id === message.conversationId 
-            ? { ...conv, lastMessage: message, lastMessageTime: message.timestamp }
-            : conv
-        )
-      );
+      // Update conversation's last message AND fetch conversations if needed
+      setConversations(prev => {
+        const existingConvIndex = prev.findIndex(conv => conv._id === message.conversationId);
+        
+        if (existingConvIndex >= 0) {
+          // Update existing conversation
+          return prev.map(conv => 
+            conv._id === message.conversationId 
+              ? { ...conv, lastMessage: message, lastMessageTime: message.timestamp }
+              : conv
+          );
+        } else {
+          // If conversation doesn't exist, fetch conversations to get the latest list
+          console.log('Conversation not found in list, refetching conversations...');
+          setTimeout(() => {
+            fetchConversations();
+          }, 100); // Small delay to avoid race conditions
+          return prev;
+        }
+      });
       
       // Update unread count if message is not from current user
-      if (message.senderId !== userData.id) {
+      const currentUserId = String(userData._id || userData.id);
+      const messageSenderId = String(message.senderId);
+      
+      console.log('Checking unread count:', {
+        currentUserId,
+        messageSenderId,
+        isFromCurrentUser: messageSenderId === currentUserId
+      });
+      
+      if (messageSenderId !== currentUserId) {
         setUnreadCount(prev => prev + 1);
       }
     });
@@ -155,6 +230,7 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
     newSocket.on('messageError', (error) => {
       // Handle message error
+      console.error('Message error:', error);
     });
 
     setSocket(newSocket);
@@ -165,33 +241,40 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   }, []);
 
   const sendMessage = (conversationId: string, receiverId: string, message: string) => {
-    if (!socket) {
+    if (!socket || !isConnected) {
+      console.error('Socket not available or not connected');
       return;
     }
 
-    if (!isConnected) {
-      return;
-    }
-
-    const messageData = {
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    console.log('Sending message:', {
       conversationId,
       receiverId,
       message,
+      fromUser: userData.name,
+      fromRole: userData.role
+    });
+
+    // Send message to server
+    socket.emit('sendMessage', {
+      conversationId,
+      receiverId,
+      message: message.trim(),
       messageType: 'text',
-    };
+    });
 
-    socket.emit('sendMessage', messageData);
-
-    // Add the message optimistically to the UI
+    // Add optimistic message to UI
     const tempMessage = {
-      id: `temp-${Date.now()}`,
+      id: `temp-${Date.now()}-${Math.random()}`,
       conversationId,
-      senderId: JSON.parse(localStorage.getItem('user') || '{}')._id, // Use _id instead of id
+      senderId: userData._id || userData.id,
       receiverId,
-      message,
+      message: message.trim(),
       messageType: 'text' as const,
       timestamp: new Date().toISOString(),
-      senderRole: JSON.parse(localStorage.getItem('user') || '{}').role,
+      senderRole: userData.role,
+      senderName: userData.name,
       isRead: false,
     };
 
@@ -359,9 +442,19 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
+        
+        // Ensure all messages have valid IDs
+        const messagesWithIds = data.map((message: any, index: number) => {
+          if (!message.id) {
+            console.warn('Message without ID found, generating one:', message);
+            message.id = `msg-fetch-${Date.now()}-${index}`;
+          }
+          return message;
+        });
+        
         setMessages(prev => ({
           ...prev,
-          [conversationId]: data.reverse()
+          [conversationId]: messagesWithIds.reverse()
         }));
       }
     } catch (error) {
