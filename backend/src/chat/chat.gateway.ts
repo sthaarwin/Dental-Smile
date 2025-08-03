@@ -138,6 +138,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
+      this.logger.log(`Sending message from ${userInfo.name} (${userInfo.role}) to ${data.receiverId}`);
+
       // Save message to database
       const savedMessage = await this.chatService.saveMessage({
         conversationId: data.conversationId,
@@ -147,18 +149,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messageType: data.messageType || 'text',
       });
 
-      // Get receiver information for better logging
-      let receiverName = 'Unknown User';
-      try {
-        const receiver = await this.usersService.findOne(data.receiverId);
-        receiverName = receiver?.name || 'Unknown User';
-      } catch (error) {
-        this.logger.warn(`Could not fetch receiver name for ${data.receiverId}: ${error.message}`);
-      }
-
-      this.logger.log(`Message sent from ${userInfo.name} to ${receiverName} in conversation ${data.conversationId}`);
-
-      // Create the message object to emit
+      // Create the message object to emit - ensure it has all required fields
       const messageToEmit = {
         id: String(savedMessage._id),
         conversationId: data.conversationId,
@@ -168,21 +159,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         messageType: data.messageType || 'text',
         timestamp: savedMessage.timestamp,
         senderRole: userInfo.role,
-        senderName: userInfo.name, // Include sender name
+        senderName: userInfo.name,
+        isRead: false,
       };
 
-      // Emit message to conversation room
+      this.logger.log(`Broadcasting message ${messageToEmit.id} to all relevant clients`);
+
+      // Emit to conversation room (both participants if they're in the conversation)
       this.server.to(`conversation_${data.conversationId}`).emit('newMessage', messageToEmit);
 
-      // Also emit to specific user rooms to ensure delivery
-      this.server.to(`user_${data.receiverId}`).emit('newMessage', messageToEmit);
+      // Also emit directly to both sender and receiver regardless of room membership
       this.server.to(`user_${userInfo.userId}`).emit('newMessage', messageToEmit);
+      this.server.to(`user_${data.receiverId}`).emit('newMessage', messageToEmit);
 
-      // Send confirmation back to sender
+      // Send confirmation to sender
       client.emit('messageSent', { 
         messageId: String(savedMessage._id),
-        timestamp: savedMessage.timestamp 
+        timestamp: savedMessage.timestamp,
+        success: true
       });
+
+      this.logger.log(`Message ${messageToEmit.id} sent successfully`);
 
     } catch (error) {
       this.logger.error('Error sending message:', error);

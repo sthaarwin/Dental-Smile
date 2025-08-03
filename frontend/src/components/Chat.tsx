@@ -77,7 +77,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
         setCurrentUser(user);
       }
     }
-  }, [isOpen, fetchConversations]);
+  }, [isOpen]); // Keep this dependency array simple
 
   // Add effect to refresh conversations when a new selectedConversation is provided
   useEffect(() => {
@@ -86,7 +86,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       // This ensures we have the latest conversation list
       fetchConversations();
     }
-  }, [selectedConversation, isOpen, fetchConversations]);
+  }, [selectedConversation, isOpen]); // Keep this dependency array simple
 
   useEffect(() => {
     if (selectedConversation) {
@@ -104,7 +104,15 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
             setCurrentConversation(selectedConversation);
           } else {
             console.warn(`Selected conversation ${selectedConversation} still not found after retry`);
-            setCurrentConversation(null);
+            // Instead of setting to null, try to use the first available conversation
+            // that involves the current user
+            const firstConversation = conversations[0];
+            if (firstConversation) {
+              console.log(`Using first available conversation: ${firstConversation._id}`);
+              setCurrentConversation(firstConversation._id);
+            } else {
+              setCurrentConversation(null);
+            }
           }
         }, 500);
       } else {
@@ -115,17 +123,22 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
 
   useEffect(() => {
     if (currentConversation) {
+      console.log(`Joining conversation: ${currentConversation}`);
       joinConversation(currentConversation);
       fetchMessages(currentConversation);
       
       return () => {
+        console.log(`Leaving conversation: ${currentConversation}`);
         leaveConversation(currentConversation);
       };
     }
-  }, [currentConversation, joinConversation, leaveConversation, fetchMessages]);
+  }, [currentConversation]);
 
+  // Only scroll to bottom when messages change for the current conversation
   useEffect(() => {
-    scrollToBottom();
+    if (currentConversation && messages[currentConversation]) {
+      scrollToBottom();
+    }
   }, [messages, currentConversation]);
 
   const scrollToBottom = () => {
@@ -133,17 +146,29 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
   };
 
   const handleSendMessage = () => {
+    console.log('handleSendMessage - messageText:', messageText);
+    console.log('handleSendMessage - currentConversation:', currentConversation);
+    console.log('handleSendMessage - conversations:', conversations);
+    
     if (!messageText.trim() || !currentConversation) {
+      console.log('handleSendMessage - missing message or conversation');
       return;
     }
 
     const conversation = conversations.find(c => c._id === currentConversation);
+    console.log('handleSendMessage - found conversation:', conversation);
+    
     if (!conversation) {
+      console.log('handleSendMessage - conversation not found in conversations list');
       return;
     }
 
-    const otherParticipant = conversation.participants.find(p => p._id !== currentUser?._id);
+    const otherParticipant = getOtherParticipant(conversation);
     if (!otherParticipant) {
+      console.error('Could not find other participant in conversation');
+      console.log('handleSendMessage - conversation participants:', conversation.participants);
+      console.log('handleSendMessage - current user:', currentUser);
+      toast.error('Unable to send message - recipient not found');
       return;
     }
 
@@ -152,6 +177,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
       return;
     }
 
+    console.log('Sending message to:', otherParticipant.name, 'ID:', otherParticipant._id);
     sendMessage(currentConversation, otherParticipant._id, messageText);
     setMessageText('');
   };
@@ -250,18 +276,96 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
   };
 
   const getOtherParticipant = (conversation: any) => {
+    console.log('getOtherParticipant - conversation:', conversation);
+    console.log('getOtherParticipant - currentUser:', currentUser);
+    
     if (!conversation || !conversation.participants || !Array.isArray(conversation.participants) || !currentUser) {
+      console.log('getOtherParticipant - missing data');
       return null;
     }
     
-    return conversation.participants.find((p: any) => {
+    const currentUserId = String(currentUser._id || currentUser.id || '');
+    console.log('getOtherParticipant - currentUserId:', currentUserId);
+    console.log('getOtherParticipant - participants array length:', conversation.participants.length);
+    
+    // Log each participant in detail
+    conversation.participants.forEach((p: any, index: number) => {
+      console.log(`getOtherParticipant - participant ${index}:`, p);
+      console.log(`getOtherParticipant - participant ${index} _id:`, p?._id);
+      console.log(`getOtherParticipant - participant ${index} id:`, p?.id);
+    });
+    
+    // TEMPORARY FIX: If conversation only has 1 participant, we need to find the other user
+    // This happens when the conversation data is corrupted or not properly populated
+    if (conversation.participants.length === 1) {
+      const singleParticipant = conversation.participants[0];
+      const singleParticipantId = String(singleParticipant._id || singleParticipant.id || '');
+      
+      console.log('getOtherParticipant - ISSUE: Only 1 participant found');
+      console.log('getOtherParticipant - Single participant ID:', singleParticipantId);
+      console.log('getOtherParticipant - Current user ID:', currentUserId);
+      
+      // If the single participant is the current user, we need to find the other user
+      if (singleParticipantId === currentUserId) {
+        console.log('getOtherParticipant - Single participant is current user, need to find other user');
+        
+        // Try to get the other user from message history
+        const conversationMessages = messages[conversation._id] || [];
+        console.log('getOtherParticipant - Checking messages for other participant:', conversationMessages);
+        
+        for (const message of conversationMessages) {
+          const messageSenderId = String(message.senderId || '');
+          const messageReceiverId = String(message.receiverId || '');
+          
+          // Find a user ID that's not the current user
+          if (messageSenderId !== currentUserId && messageSenderId) {
+            console.log('getOtherParticipant - Found other user from message sender:', messageSenderId);
+            // Create a basic participant object from message data
+            return {
+              _id: messageSenderId,
+              name: message.senderName || 'Unknown User',
+              role: message.senderRole || 'user',
+              profile_picture: null
+            };
+          }
+          
+          if (messageReceiverId !== currentUserId && messageReceiverId) {
+            console.log('getOtherParticipant - Found other user from message receiver:', messageReceiverId);
+            // We don't have receiver details in messages, so return basic info
+            return {
+              _id: messageReceiverId,
+              name: 'Chat Partner',
+              role: 'user',
+              profile_picture: null
+            };
+          }
+        }
+        
+        console.log('getOtherParticipant - Could not find other user in messages');
+        return null;
+      } else {
+        // The single participant is not the current user, so return them
+        console.log('getOtherParticipant - Single participant is the other user');
+        return singleParticipant;
+      }
+    }
+    
+    const otherParticipant = conversation.participants.find((p: any) => {
       // Add null check for participant
       if (!p || !p._id) {
+        console.log('getOtherParticipant - invalid participant:', p);
         return false;
       }
-      // Use _id instead of id to match localStorage structure
-      return p._id !== currentUser?._id;
+      
+      const participantId = String(p._id || p.id || '');
+      console.log('getOtherParticipant - comparing:', participantId, 'vs', currentUserId);
+      const isOther = participantId !== currentUserId;
+      console.log('getOtherParticipant - isOther:', isOther);
+      return isOther;
     });
+    
+    console.log('getOtherParticipant - found other participant:', otherParticipant);
+    return otherParticipant;
   };
 
   const formatMessageTime = (timestamp: string) => {
@@ -472,16 +576,20 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                       const conversation = getCurrentConversation();
                       
                       // Extract sender ID properly - handle both string and object cases
-                      let messageSenderId = message.senderId;
-                      if (typeof messageSenderId === 'object' && messageSenderId !== null) {
+                      let messageSenderId: string = '';
+                      if (typeof message.senderId === 'object' && message.senderId !== null) {
                         // If senderId is an object, try to extract the actual ID
-                        messageSenderId = messageSenderId._id || messageSenderId.id || String(messageSenderId);
+                        messageSenderId = (message.senderId as any)._id || (message.senderId as any).id || String(message.senderId);
+                      } else {
+                        messageSenderId = String(message.senderId || '');
                       }
-                      messageSenderId = String(messageSenderId || '');
                       
-                      // Get current user ID consistently
+                      // Get current user ID consistently - handle both _id and id fields
                       const currentUserId = String(currentUser?._id || currentUser?.id || '');
                       const isCurrentUser = currentUserId === messageSenderId;
+                      
+                      // Create a unique key for each message - ensure we always have an ID
+                      const messageKey = message.id || `message-${index}-${message.timestamp || Date.now()}-${messageSenderId}`;
                       
                       // Get sender information with improved logic
                       let sender = null;
@@ -535,7 +643,7 @@ const Chat: React.FC<ChatProps> = ({ isOpen, onClose, selectedConversation }) =>
                       
                       return (
                         <div
-                          key={message.id || message._id || `message-${index}`}
+                          key={messageKey}
                           className={cn(
                             "flex items-end gap-3 max-w-full",
                             isCurrentUser ? "justify-end" : "justify-start"
